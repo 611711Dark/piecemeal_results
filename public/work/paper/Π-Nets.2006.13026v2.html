@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>深度多项式神经网络（Π-Nets）</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        h1 {
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            border-left: 4px solid #3498db;
+            padding-left: 10px;
+            margin-top: 30px;
+        }
+        .authors {
+            font-style: italic;
+            margin: 20px 0;
+        }
+        .abstract {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 30px;
+        }
+        .model-card {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 15px 0;
+            background-color: #f8f9fa;
+        }
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        .results-table th, .results-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .results-table th {
+            background-color: #3498db;
+            color: white;
+        }
+        .results-table tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        .figure {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .figure img {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+        }
+        .figure-caption {
+            font-style: italic;
+            margin-top: 10px;
+        }
+        .highlight {
+            background-color: #fffde7;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <h1>深度多项式神经网络（Π-Nets）</h1>
+    
+    <div class="authors">
+        <p>作者：Grigorios G. Chrysos, Stylianos Moschoglou, Giorgos Bouritsas, Jiankang Deng, Yannis Panagakis, Stefanos Zafeiriou</p>
+        <p>机构：伦敦帝国理工学院计算系、瑞士洛桑联邦理工学院电气工程学院、雅典大学信息与电信系</p>
+    </div>
+    
+    <div class="abstract">
+        <h2>摘要</h2>
+        <p>深度卷积神经网络（DCNNs）是目前计算机视觉和机器学习中生成式和判别式学习的首选方法。DCNNs的成功可归因于其构建模块（如残差块、整流器、复杂的归一化方案等）的精心选择。</p>
+        <p>本文提出了一种新的函数逼近器类别——Π-网络（Π-Nets），它基于多项式展开。Π-Nets是多项式神经网络，即输出是输入的高阶多项式。通过因子共享的集体张量分解来估计自然由高阶张量表示的未知参数。我们介绍了三种显著减少参数数量的张量分解方法，并展示了如何通过分层神经网络高效实现它们。</p>
+        <p>我们通过大量实验证明，Π-Nets具有很强的表达能力，即使在大量任务和信号（如图像、图形和音频）中不使用非线性激活函数也能产生良好的结果。当与激活函数结合使用时，Π-Nets在三个具有挑战性的任务中（图像生成、人脸验证和3D网格表示学习）取得了最先进的结果。</p>
+    </div>
+    
+    <h2>1. 研究背景</h2>
+    <p>传统的深度神经网络通常由线性变换和逐元素激活函数组成，这种范式几十年来基本保持不变。尽管使用了各种线性变换和激活函数，但扩展这一范式的努力迄今尚未引起太多关注。</p>
+    
+    <p>近期研究表明，乘法交互可以扩展可逼近函数的类别。受这些发现的启发，我们研究了一类新的函数逼近器——Π-网络，其中输出是输入的多项式函数。</p>
+    
+    <h2>2. Π-网络的核心思想</h2>
+    <p>Π-网络的核心思想是学习一个函数逼近器，其中输出的每个元素都表示为所有输入元素的<strong class="highlight">高阶多项式</strong>。具体来说，我们学习一个N阶函数G: ℝᵈ → ℝᵒ，使得：</p>
+    
+    <div class="model-card">
+        <p>xⱼ = G(z)ⱼ = βⱼ + wⱼ⁽¹⁾ᵀz + zᵀWⱼ⁽²⁾z + 𝒲ⱼ⁽³⁾ ×₁ z ×₂ z ×₃ z + ... + 𝒲ⱼ⁽ᴺ⁾ ∏ₙ₌₁ᴺ ×ₙ z</p>
+    </div>
+    
+    <p>其中βⱼ ∈ ℝ，{𝒲ⱼ⁽ⁿ⁾ ∈ ℝᴼ×∏ₘ₌₁ⁿ×ₘᵈ}ₙ₌₁ᴺ是用于逼近输出xⱼ的参数。这种形式允许我们逼近任何光滑函数（对于大N），但参数数量会随O(dᴺ)增长。</p>
+    
+    <h2>3. 模型架构</h2>
+    
+    <h3>3.1 单多项式方法</h3>
+    <p>我们提出了三种不同的张量分解方法来实现多项式神经网络：</p>
+    
+    <div class="model-card">
+        <h4>模型1：CCP（耦合CP分解）</h4>
+        <p>我们提出使用具有特定因子共享模式的耦合CP分解来联合分解所有参数张量。这种分解的递归关系为：</p>
+        <p>xₙ = (Uₙᵀz) * xₙ₋₁ + xₙ₋₁</p>
+        <p>其中n=2,...,N，x₁ = U₁ᵀz，x = Cx_N + β</p>
+    </div>
+    
+    <div class="model-card">
+        <h4>模型2：NCP（嵌套耦合CP分解）</h4>
+        <p>我们利用多项式参数上的联合分层分解，递归关系为：</p>
+        <p>xₙ = (Aₙᵀz) * (Sₙᵀxₙ₋₁ + Bₙᵀbₙ)</p>
+        <p>其中n=2,...,N，x₁ = (A₁ᵀz) * (B₁ᵀb₁)，x = Cx_N + β</p>
+    </div>
+    
+    <div class="model-card">
+        <h4>模型3：NCP-Skip（带跳跃连接的嵌套耦合CP分解）</h4>
+        <p>通过添加跳跃连接扩展NCP的表达能力：</p>
+        <p>xₙ = (Aₙᵀz) * (Sₙᵀxₙ₋₁ + Bₙᵀbₙ) + Vₙxₙ₋₁</p>
+    </div>
+    
+    <div class="figure">
+        <img src="https://via.placeholder.com/800x400?text=Π-Nets+架构示意图" alt="Π-Nets架构示意图">
+        <div class="figure-caption">图1：Π-Nets架构示意图（以三阶近似为例）</div>
+    </div>
+    
+    <h3>3.2 多项式乘积方法</h3>
+    <p>除了使用单多项式，我们还可以将函数逼近表示为多项式的乘积。这种方法通过将第i个多项式的输出作为第(i+1)个多项式的输入来实现。</p>
+    
+    <div class="figure">
+        <img src="https://via.placeholder.com/800x300?text=多项式乘积方法示意图" alt="多项式乘积方法示意图">
+        <div class="figure-caption">图2：多项式乘积方法（ProdPoly）抽象示意图</div>
+    </div>
+    
+    <p>使用N个这样的多项式，最终输出G(z)表示2ᴺ阶展开。这种方法的主要优点包括：</p>
+    <ul>
+        <li>可以为每个多项式使用不同的分解和展开阶数</li>
+        <li>实现相同逼近阶数所需的参数数量大大减少</li>
+    </ul>
+    
+    <h2>4. 实验结果</h2>
+    
+    <h3>4.1 图像生成</h3>
+    
+    <h4>CIFAR10上的SNGAN</h4>
+    <p>我们将SNGAN架构转换为Π-网络，其中每个残差块是多项式的一个阶。我们实现了两个版本：单多项式（NCP）和多项式乘积（每个多项式使用NCP）。</p>
+    
+    <table class="results-table">
+        <tr>
+            <th>模型</th>
+            <th>IS (↑)</th>
+            <th>FID (↓)</th>
+        </tr>
+        <tr>
+            <td>SNGAN</td>
+            <td>8.06 ± 0.10</td>
+            <td>19.06 ± 0.50</td>
+        </tr>
+        <tr>
+            <td>NCP</td>
+            <td>8.30 ± 0.09</td>
+            <td>17.65 ± 0.76</td>
+        </tr>
+        <tr>
+            <td>ProdPoly</td>
+            <td><strong>8.49 ± 0.11</strong></td>
+            <td><strong>16.79 ± 0.81</strong></td>
+        </tr>
+    </table>
+    
+    <h4>FFHQ上的StyleGAN</h4>
+    <p>我们对StyleGAN的映射网络进行了最小修改，将其转换为多项式（具体为NCP），使生成器成为两个多项式的乘积。在256×256分辨率下，我们的方法将FID分数从7.15提高到6.82，提升了5%。</p>
+    
+    <div class="figure">
+        <img src="https://via.placeholder.com/600x300?text=FFHQ生成样本" alt="FFHQ生成样本">
+        <div class="figure-caption">图3：在FFHQ上训练的ProdPoly生成的样本</div>
+    </div>
+    
+    <h3>4.2 分类任务</h3>
+    
+    <h4>音频分类</h4>
+    <p>我们在Speech Commands数据集上评估了ResNet34架构和我们的ProdPoly-ResNet。</p>
+    
+    <table class="results-table">
+        <tr>
+            <th>模型</th>
+            <th>块数</th>
+            <th>参数数量(百万)</th>
+            <th>准确率</th>
+        </tr>
+        <tr>
+            <td>ResNet34</td>
+            <td>[3,4,6,3]</td>
+            <td>21.3</td>
+            <td>0.769 ± 0.003</td>
+        </tr>
+        <tr>
+            <td>ProdPoly-ResNet</td>
+            <td>[3,4,3,2]</td>
+            <td><strong>14.7</strong></td>
+            <td>0.769 ± 0.001</td>
+        </tr>
+    </table>
+    
+    <h4>CIFAR10分类</h4>
+    <p>我们选择了ResNet18和ResNet34作为基线。</p>
+    
+    <table class="results-table">
+        <tr>
+            <th>模型</th>
+            <th>块数</th>
+            <th>参数数量(百万)</th>
+            <th>准确率</th>
+        </tr>
+        <tr>
+            <td>ResNet18</td>
+            <td>[2,2,2,2]</td>
+            <td>11.2</td>
+            <td>0.945 ± 0.000</td>
+        </tr>
+        <tr>
+            <td>ProdPoly-ResNet</td>
+            <td>[2,2,1,1]</td>
+            <td><strong>6.0</strong></td>
+            <td>0.946 ± 0.001</td>
+        </tr>
+    </table>
+    
+    <h4>ImageNet分类</h4>
+    <p>ProdPoly-ResNet50实现了22.827%的单裁剪Top-1验证错误率和6.431%的Top-5验证错误率，分别比ResNet50提高了0.719%和0.473%。</p>
+    
+    <div class="figure">
+        <img src="https://via.placeholder.com/800x400?text=ImageNet训练曲线" alt="ImageNet训练曲线">
+        <div class="figure-caption">图4：ImageNet数据集上的Top-1和Top-5错误曲线</div>
+    </div>
+    
+    <h3>4.3 人脸验证与识别</h3>
+    <p>我们将当前最先进的ArcFace方法转换为使用NCP-Skip的多项式网络。</p>
+    
+    <table class="results-table">
+        <tr>
+            <th>数据集</th>
+            <th>ResNet50</th>
+            <th>ProdPoly-ResNet50</th>
+        </tr>
+        <tr>
+            <td>LFW</td>
+            <td>99.733 ± 0.309</td>
+            <td><strong>99.833 ± 0.211</strong> (↑ 0.100)</td>
+        </tr>
+        <tr>
+            <td>CFP-FP</td>
+            <td>98.800 ± 0.249</td>
+            <td><strong>98.986 ± 0.274</strong> (↑ 0.186)</td>
+        </tr>
+        <tr>
+            <td>IJB-B (TAR@FAR=1e-4)</td>
+            <td>84.70</td>
+            <td><strong>85.58</strong> (↑ 0.88)</td>
+        </tr>
+        <tr>
+            <td>MegaFace (Rank-1@1e6)</td>
+            <td>98.28</td>
+            <td><strong>98.78</strong> (↑ 0.50)</td>
+        </tr>
+    </table>
+    
+    <div class="figure">
+        <img src="https://via.placeholder.com/800x400?text=人脸验证ROC曲线" alt="人脸验证ROC曲线">
+        <div class="figure-caption">图5：IJB-B和IJB-C数据集上1:1验证协议的ROC曲线</div>
+    </div>
+    
+    <h3>4.4 3D网格表示学习</h3>
+    <p>我们在固定拓扑的3D可变形网格上评估高阶相关性。我们使用螺旋卷积的现有架构和超参数，将其转换为Spiral Π-Net。</p>
+    
+    <div class="figure">
+        <img src="https://via.placeholder.com/800x400?text=3D网格重建误差" alt="3D网格重建误差">
+        <div class="figure-caption">图6：ProdPoly与一阶图可学习算子在网格自动编码中的比较</div>
+    </div>
+    
+    <div class="figure">
+        <img src="https://via.placeholder.com/600x300?text=3D网格重建可视化" alt="3D网格重建可视化">
+        <div class="figure-caption">图7：示例人体网格上每顶点重建误差的颜色编码</div>
+    </div>
+    
+    <h2>5. 未来方向</h2>
+    <p>Π-网络这一新类别已经取得了强有力的实验结果和一些经验理论结果。我们预计在未来几年会有新的工作改进我们的结果并扩展我们的公式。为此，我们总结了几个对感兴趣的从业者开放的基础主题：</p>
+    
+    <ul>
+        <li><strong>Π-网络的泛化能力</strong>：在没有激活函数的评估中，我们注意到多项式可能容易过拟合。当我们添加非线性激活函数时，没有观察到这种一致的模式。</li>
+        <li><strong>多项式阶数的选择</strong>：如何选择多项式的阶数仍然是一个开放问题。</li>
+        <li><strong>与其他架构的结合</strong>：如何将Π-网络与其他先进架构（如Transformer）结合。</li>
+        <li><strong>理论分析</strong>：对Π-网络的表达能力、泛化能力和优化特性进行更深入的理论分析。</li>
+    </ul>
+    
+    <h2>6. 结论</h2>
+    <p>我们提出了一类新的神经网络——Π-网络，其中输出是输入的高阶多项式。通过张量分解和因子共享，我们实现了参数效率高的多项式神经网络架构。实验证明，Π-网络具有很强的表达能力，在图像生成、分类、人脸验证和3D网格表示学习等多个任务上取得了最先进的结果。</p>
+    
+    <p>Π-网络为深度学习提供了一种新的范式，通过多项式展开来增强模型的表达能力，同时通过张量分解保持参数效率。这一工作为未来的研究开辟了多个方向，包括理论分析、架构改进和更广泛的应用。</p>
+    
+    <p>项目代码已开源：<a href="https://github.com/grigorisg9gr/polynomial_nets">https://github.com/grigorisg9gr/polynomial_nets</a></p>
+</body>
+</html>
