@@ -1,0 +1,1923 @@
+#!/usr/bin/env bash
+#A script written by Benexl in September 2024 under MIT LICENSE
+
+CLI_HEADER='
+██╗░░░██╗████████╗░░░░░░██╗░░██╗
+╚██╗░██╔╝╚══██╔══╝░░░░░░╚██╗██╔╝
+░╚████╔╝░░░░██║░░░█████╗░╚███╔╝░
+░░╚██╔╝░░░░░██║░░░╚════╝░██╔██╗░
+░░░██║░░░░░░██║░░░░░░░░░██╔╝╚██╗
+░░░╚═╝░░░░░░╚═╝░░░░░░░░░╚═╝░░╚═╝
+'
+
+# CLI_NAME=${0##*/}
+CLI_NAME="yt-x"
+
+CLI_VERSION="0.4.5"
+CLI_AUTHOR="Benexl"
+CLI_DIR="$(dirname "$(realpath "$0")")"
+CLI_CONFIG_DIR="$HOME/.config/$CLI_NAME"
+CLI_EXTENSION_DIR="$CLI_CONFIG_DIR/extensions"
+CLI_CACHE_DIR="$HOME/.cache/$CLI_NAME"
+CLI_PREVIEW_IMAGES_CACHE_DIR="$CLI_CACHE_DIR/preview_images"
+CLI_YT_DLP_ARCHIVE="$CLI_CACHE_DIR/yt-dlp-archive"
+CLI_AUTO_GEN_PLAYLISTS="$CLI_CACHE_DIR/playlists"
+CLI_PREVIEW_SCRIPTS_DIR="$CLI_CACHE_DIR/preview_text"
+[ -d "$CLI_CONFIG_DIR" ] || mkdir -p "$CLI_CONFIG_DIR"
+[ -d "$CLI_EXTENSION_DIR" ] || mkdir -p "$CLI_EXTENSION_DIR"
+[ -d "$CLI_PREVIEW_IMAGES_CACHE_DIR" ] || mkdir -p "$CLI_PREVIEW_IMAGES_CACHE_DIR"
+[ -d "$CLI_PREVIEW_SCRIPTS_DIR" ] || mkdir -p "$CLI_PREVIEW_SCRIPTS_DIR"
+[ -d "$CLI_YT_DLP_ARCHIVE" ] || mkdir -p "$CLI_YT_DLP_ARCHIVE"
+[ -d "$CLI_AUTO_GEN_PLAYLISTS" ] || mkdir -p "$CLI_AUTO_GEN_PLAYLISTS"
+
+case "$(uname -a)" in
+*ndroid) PLATFORM="android" ;;
+*Darwin*) PLATFORM="mac" ;;
+*MINGW* | *WSL2*) PLATFORM="windows" ;;
+*) PLATFORM="linux" ;;
+esac
+
+print_config() {
+  echo "\
+#
+#    ██╗░░░██╗████████╗░░░░░░██╗░░██╗  ░█████╗░░█████╗░███╗░░██╗███████╗██╗░██████╗░
+#    ╚██╗░██╔╝╚══██╔══╝░░░░░░╚██╗██╔╝  ██╔══██╗██╔══██╗████╗░██║██╔════╝██║██╔════╝░
+#    ░╚████╔╝░░░░██║░░░█████╗░╚███╔╝░  ██║░░╚═╝██║░░██║██╔██╗██║█████╗░░██║██║░░██╗░
+#    ░░╚██╔╝░░░░░██║░░░╚════╝░██╔██╗░  ██║░░██╗██║░░██║██║╚████║██╔══╝░░██║██║░░╚██╗
+#    ░░░██║░░░░░░██║░░░░░░░░░██╔╝╚██╗  ╚█████╔╝╚█████╔╝██║░╚███║██║░░░░░██║╚██████╔╝
+#    ░░░╚═╝░░░░░░╚═╝░░░░░░░░░╚═╝░░╚═╝  ░╚════╝░░╚════╝░╚═╝░░╚══╝╚═╝░░░░░╚═╝░╚═════╝░
+#
+
+# 始终加载的扩展
+# 用于定义对默认行为的更改和覆盖
+# 例如：环境变量、用户界面、函数
+# 扩展文件夹中的所有文件名
+AUTO_LOADED_EXTENSIONS: $AUTO_LOADED_EXTENSIONS
+
+# 是否在输出时显示颜色
+PRETTY_PRINT: $PRETTY_PRINT
+
+# 编辑配置文件的首选编辑器
+EDITOR: $PREFERRED_EDITOR
+
+# 终端用户界面的首选选择器 [fzf/rofi]
+PREFERRED_SELECTOR: $PREFERRED_SELECTOR
+
+# 使用非mpv播放器流媒体时的视频质量
+VIDEO_QUALITY: $VIDEO_QUALITY
+
+# 是否显示预览 [true/false]
+# 这很酷，所以建议启用
+ENABLE_PREVIEW: $ENABLE_PREVIEW
+
+# 在终端中渲染图像的工具 [chafa/icat]
+IMAGE_RENDERER: $IMAGE_RENDERER
+
+# 是否将mpv作为后台进程运行，即使您终止程序或终端会话也不会关闭
+DISOWN_STREAMING_PROCESS: $DISOWN_STREAMING_PROCESS
+
+# 是否更新本地保存的最近列表 [true/false]
+UPDATE_RECENT: $UPDATE_RECENT
+
+# 是否保存搜索历史记录 [true/false]
+SEARCH_HISTORY: $SEARCH_HISTORY
+
+# 要保存的最近视频数量
+NO_OF_RECENT: $NO_OF_RECENT
+
+# 用于流媒体的播放器 [mpv/vlc]
+PLAYER: $PLAYER
+
+# 用于提取cookie的浏览器
+# yt-dlp使用此浏览器访问需要登录的内容
+PREFERRED_BROWSER: $(echo "$PREFERRED_BROWSER" | sed 's/--cookies-from-browser //g')
+
+# 从 yt-dlp 获取的结果数量
+NO_OF_SEARCH_RESULTS: $NO_OF_SEARCH_RESULTS
+
+# 通知在屏幕上停留的时间
+NOTIFICATION_DURATION: $NOTIFICATION_DURATION
+
+# 下载内容存放的位置
+DOWNLOAD_DIRECTORY: $DOWNLOAD_DIRECTORY
+
+# 是否检查更新 [true/false]
+UPDATE_CHECK: $UPDATE_CHECK
+"
+}
+
+find_config_option () {
+    local option=$1
+    awk -F': ' "/^$option:/ && !/#/ {print \$2}" "$CLI_CONFIG_DIR/${CLI_NAME}.conf"
+}
+
+load_config() {
+  ! [ -f "$CLI_CONFIG_DIR/${CLI_NAME}.conf" ] && touch "$CLI_CONFIG_DIR/${CLI_NAME}.conf"
+
+  PRETTY_PRINT="$(find_config_option "PRETTY_PRINT")"
+  [ -z "$PRETTY_PRINT" ] && PRETTY_PRINT="true"
+
+  IMAGE_RENDERER="$(find_config_option "IMAGE_RENDERER")"
+  [ -z "$IMAGE_RENDERER" ] && IMAGE_RENDERER=$([ -n "$KITTY_WINDOW_ID" ] && echo "icat" || echo "chafa")
+
+  DISOWN_STREAMING_PROCESS="$(find_config_option "DISOWN_STREAMING_PROCESS")"
+  [ -z "$DISOWN_STREAMING_PROCESS" ] && DISOWN_STREAMING_PROCESS="true"
+
+  PREFERRED_EDITOR="$(find_config_option "EDITOR")"
+  [ -z "$PREFERRED_EDITOR" ] && PREFERRED_EDITOR=${EDITOR:-open}
+
+  PREFERRED_SELECTOR="$(find_config_option "PREFERRED_SELECTOR")"
+  [ -z "$PREFERRED_SELECTOR" ] && PREFERRED_SELECTOR="fzf"
+
+  VIDEO_QUALITY="$(find_config_option "VIDEO_QUALITY")"
+  [ -z "$VIDEO_QUALITY" ] && VIDEO_QUALITY=1080
+
+  ENABLE_PREVIEW="$(find_config_option "ENABLE_PREVIEW")"
+  [ -z "$ENABLE_PREVIEW" ] && ENABLE_PREVIEW="false"
+
+  UPDATE_RECENT="$(find_config_option "UPDATE_RECENT")"
+  [ -z "$UPDATE_RECENT" ] && UPDATE_RECENT="true"
+
+  NO_OF_RECENT="$(find_config_option "NO_OF_RECENT")"
+  [ -z "$NO_OF_RECENT" ] && NO_OF_RECENT=30
+
+  PLAYER="$(find_config_option "PLAYER")"
+  [ -z "$PLAYER" ] && PLAYER='mpv'
+
+  PREFERRED_BROWSER="$(find_config_option "PREFERRED_BROWSER")"
+  [ -n "$PREFERRED_BROWSER" ] && PREFERRED_BROWSER="--cookies-from-browser $PREFERRED_BROWSER"
+
+  NO_OF_SEARCH_RESULTS="$(find_config_option "NUMBER_OF_SEARCH_RESULTS")"
+  [ -z "$NO_OF_SEARCH_RESULTS" ] && NO_OF_SEARCH_RESULTS=30
+
+  NOTIFICATION_DURATION="$(find_config_option "NOTIFICATION_DURATION")"
+  [ -z "$NOTIFICATION_DURATION" ] && NOTIFICATION_DURATION=5
+
+  SEARCH_HISTORY="$(find_config_option "SEARCH_HISTORY")"
+  [ -z "$SEARCH_HISTORY" ] && SEARCH_HISTORY="true"
+
+  DOWNLOAD_DIRECTORY="$(find_config_option "DOWNLOAD_DIRECTORY")"
+  [ -z "$DOWNLOAD_DIRECTORY" ] && DOWNLOAD_DIRECTORY="$HOME/Videos/$CLI_NAME"
+  [ -d "$DOWNLOAD_DIRECTORY" ] || mkdir -p "$DOWNLOAD_DIRECTORY"
+
+  UPDATE_CHECK="$(find_config_option "UPDATE_CHECK")"
+  [ -z "$UPDATE_CHECK" ] && UPDATE_CHECK="true"
+
+  ROFI_THEME="$(find_config_option "ROFI_THEME")"
+  CUSTOM_PLAYLISTS="$CLI_CONFIG_DIR/custom_playlists.json"
+  F_CUSTOM_CMDS="$CLI_CONFIG_DIR/custom_cmds.json"
+  F_SUBSCRIPTIONS="$CLI_CONFIG_DIR/subscriptions.json"
+  PLAYLIST_START="1"
+  PLAYLIST_END="$NO_OF_SEARCH_RESULTS"
+
+  FZF_DEFAULT_OPTS=${YT_X_FZF_OPTS:-'
+    --color=fg:#d0d0d0,fg+:#d0d0d0,bg:#121212,bg+:#262626
+    --color=hl:#5f87af,hl+:#5fd7ff,info:#afaf87,marker:#87ff00
+    --color=prompt:#d7005f,spinner:#af5fff,pointer:#af5fff,header:#87afaf
+    --color=border:#262626,label:#aeaeae,query:#d9d9d9
+    --border="rounded" --border-label="" --preview-window="border-rounded" --prompt="> "
+    --marker=">" --pointer="◆" --separator="─" --scrollbar="│"
+  '}
+  init_pretty_print
+  AUTO_LOADED_EXTENSIONS="$(awk -F': ' '/^AUTO_LOADED_EXTENSIONS:/ && !/#/ {print $2}' "$CLI_CONFIG_DIR/${CLI_NAME}.conf")"
+  if [ -n "$AUTO_LOADED_EXTENSIONS" ]; then
+    for ext in $(echo "$AUTO_LOADED_EXTENSIONS" | tr ',' '\n'); do
+      [ -s "$CLI_EXTENSION_DIR/$ext" ] && . "$CLI_EXTENSION_DIR/$ext"
+    done
+  fi
+  print_config >"$CLI_CONFIG_DIR/${CLI_NAME}.conf"
+  export FZF_DEFAULT_OPTS PRETTY_PRINT PLATFORM IMAGE_RENDERER
+}
+send_notification() {
+  echo "$1" >&2 && sleep "$NOTIFICATION_DURATION"
+}
+update_script() {
+  yt_x_path="$(command -v yt-x)"
+  if [ -z "$yt_x_path" ]; then
+    send_notification "在PATH中找不到yt-x"
+    exit 1
+  fi
+
+  if [ ! -w "$yt_x_path" ]; then
+    if [ -n "$(command -v sudo)" ]; then
+      exec sudo -s "$yt_x_path" "-u"
+    else
+      send_notification "没有足够的权限进行更新，并且在PATH中找不到sudo"
+      exit 1
+    fi
+  fi
+
+  update=$(curl -s "https://raw.githubusercontent.com/Benexl/yt-x/refs/heads/master/yt-x" || byebye 1)
+  update="$(printf '%s\n' "$update" | diff -u "$yt_x_path" - 2>/dev/null)"
+  if [ -z "$update" ]; then
+    send_notification "脚本已是最新版本 :)"
+  else
+    if printf '%s\n' "$update" | patch "$yt_x_path" -; then
+      send_notification "脚本已更新！"
+    else
+      send_notification "由于某些原因无法更新！"
+    fi
+  fi
+  exec "$yt_x_path"
+}
+
+check_update() {
+  update=$(curl -s "https://raw.githubusercontent.com/Benexl/yt-x/refs/heads/master/yt-x")
+  update="$(printf '%s\n' "$update" | diff -u "$(command -v yt-x)" - 2>/dev/null)"
+  if [ -n "$update" ]; then
+    confirm "发现更新，您想在决定是否更新前查看更改内容吗" && echo "$update" | less
+    if [ "$PREFERRED_SELECTOR" = "fzf" ]; then
+      answer=$(prompt "$1")
+    else
+      answer=$(printf "是\n否" | launcher "$1")
+    fi
+    case "$answer" in
+    是|[Yy]*) update_script ;;
+    esac
+  fi
+}
+
+# Adapted from the preview script in the fzf repo
+fzf_preview() {
+  file=$1
+
+  dim=${FZF_PREVIEW_COLUMNS}x${FZF_PREVIEW_LINES}
+  if [ "$dim" = x ]; then
+    dim=$(stty size </dev/tty | awk "{print \$2 \"x\" \$1}")
+  fi
+  if ! [ "$IMAGE_RENDERER" = "icat" ] && [ -z "$KITTY_WINDOW_ID" ] && [ "$((FZF_PREVIEW_TOP + FZF_PREVIEW_LINES))" -eq "$(stty size </dev/tty | awk "{print \$1}")" ]; then
+    dim=${FZF_PREVIEW_COLUMNS}x$((FZF_PREVIEW_LINES - 1))
+  fi
+
+  if [ "$IMAGE_RENDERER" = "icat" ] && [ -z "$GHOSTTY_BIN_DIR" ]; then
+    if command -v kitten >/dev/null 2>&1; then
+      kitten icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no --place="$dim@0x0" "$file" | sed "\$d" | sed "$(printf "\$s/\$/\033[m/")"
+    elif command -v icat >/dev/null 2>&1; then
+      icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no --place="$dim@0x0" "$file" | sed "\$d" | sed "$(printf "\$s/\$/\033[m/")"
+    else
+      kitty icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no --place="$dim@0x0" "$file" | sed "\$d" | sed "$(printf "\$s/\$/\033[m/")"
+    fi
+
+  elif [ -n "$GHOSTTY_BIN_DIR" ]; then
+    if command -v kitten >/dev/null 2>&1; then
+      kitten icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no --place="$dim@0x0" "$file" | sed "\$d" | sed "$(printf "\$s/\$/\033[m/")"
+    elif command -v icat >/dev/null 2>&1; then
+      icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no --place="$dim@0x0" "$file" | sed "\$d" | sed "$(printf "\$s/\$/\033[m/")"
+    else
+      chafa -s "$dim" "$file"
+    fi
+  elif command -v chafa >/dev/null 2>&1; then
+    case "$PLATFORM" in
+    android) chafa -s "$dim" "$file" ;;
+    windows) chafa -f sixel -s "$dim" "$file" ;;
+    *) chafa -s "$dim" "$file" ;;
+    esac
+    echo
+
+  elif command -v imgcat >/dev/null; then
+    imgcat -W "${dim%%x*}" -H "${dim##*x}" "$file"
+
+  else
+    echo 请安装终端图像查看器
+    echo 可以是kitty终端和wezterm的icat，或者imgcat或chafa
+  fi
+}
+
+confirm() {
+  if command -v "gum" >/dev/null 2>&1; then
+    gum confirm "$1"
+  else
+    echo "$CLI_HEADER" >/dev/stderr
+    printf "%s [是/否]: " "$1" > /dev/stderr
+    read -r CONFIRMED
+    case "$CONFIRMED" in
+    y | Y)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+    esac
+  fi
+}
+launcher() {
+  case "$(echo "$PREFERRED_SELECTOR" | tr '[:upper:]' '[:lower:]')" in
+  rofi)
+    if [ -z "$ROFI_THEME" ]; then
+      rofi_selection=$(while read -r line; do echo "$line" | sed -r 's/\x1B(\[[0-9;]*[a-zA-Z]|\(B)//g'; done | rofi -sort -matching fuzzy -dmenu -i -width 1500 -p "" -mesg "选择操作" -matching fuzzy -sorting-method fzf)
+      [ -z "$rofi_selection" ] && echo "退出" || echo "$rofi_selection"
+    else
+      rofi_selection=$(while read -r line; do echo "$line" | sed -r 's/\x1B(\[[0-9;]*[a-zA-Z]|\(B)//g'; done | rofi -no-config -theme "$ROFI_THEME" -sort -matching fuzzy -dmenu -i -width 1500 -p "" -mesg "选择操作" -matching fuzzy -sorting-method fzf)
+      [ -z "$rofi_selection" ] && echo "退出" || echo "$rofi_selection"
+    fi
+    ;;
+  *)
+    fzf \
+      --info=hidden \
+      --layout=reverse \
+      --height=100% \
+      --prompt="${1}: " \
+      --header-first --header="$CLI_HEADER" \
+      --exact --cycle --ansi
+    ;;
+  esac
+
+}
+
+generate_sha256() {
+  local input
+
+  # Check if input is passed as an argument or piped
+  if [ -n "$1" ]; then
+    input="$1"
+  else
+    input=$(cat)
+  fi
+
+  if command -v sha256sum &>/dev/null; then
+    echo -n "$input" | sha256sum | awk '{print $1}'
+  elif command -v shasum &>/dev/null; then
+    echo -n "$input" | shasum -a 256 | awk '{print $1}'
+  elif command -v sha256 &>/dev/null; then
+    echo -n "$input" | sha256 | awk '{print $1}'
+  elif command -v openssl &>/dev/null; then
+    echo -n "$input" | openssl dgst -sha256 | awk '{print $2}'
+  else
+    echo -n "$input" | base64 | tr '/+' '_-' | tr -d '\n'
+  fi
+}
+
+generate_text_preview() {
+  [ -z "$search_results" ] && return 1
+  ids="$(echo "$1" | jq '.entries[].id' -r 2>/dev/null)"
+
+  lines="$(echo "$ids" | wc -l)"
+  for i in $(seq 1 "$lines"); do
+    video=$(echo "$1" | jq ".entries[$((i - 1))]")
+    title=$(echo "$video" | jq ".title" -r | sed 's/"/\\\\"/g;s/%/%%/g;s/\$/\\\\$/g;s/^.. //g')
+    id=$(echo "$video" | jq '.id' -r)
+    preview_image=$(echo "$video" | jq '.thumbnails[-1].url' -r | generate_sha256)
+
+    view_count=$(
+      echo "$video" | jq -r '
+      .view_count
+      |tostring
+      |split("")
+      |reverse
+      |join("")
+      |gsub("(?<thousands>[0-9]{3})(?=[0-9])"; "\(.thousands),")
+      |split("")
+      |reverse
+      |join("")
+      '
+    )
+
+    live_status=$(echo "$video" | jq '.live_status' -r)
+    [ "$live_status" = "null" ] && live_status='否'
+
+    description=$(echo "$video" | jq '.description' -r | sed "s/\"//g;s/%//g")
+    channel=$(echo "$video" | jq '.channel' -r)
+
+    # some duration calculations
+    duration=$(echo "$video" | jq '
+    try
+      if .duration>=3600 then
+        if .duration/3600|floor == 1 then
+          .duration/3600|floor|tostring + " 小时"
+        else
+          .duration/3600|floor|tostring + " 小时"
+        end
+      elif .duration>=60 then
+        if .duration/60|floor == 1 then
+          .duration/60|floor|tostring + " 分钟"
+        else
+          .duration/60|floor|tostring + " 分钟"
+        end
+      else
+        if .duration == 1 then
+          .duration/1|floor|tostring + " 秒"
+        else
+          .duration/1|floor|tostring + " 秒"
+        end
+      end
+    catch
+      "未知"
+    ' -r)
+
+    # some date calculations
+    timestamp=$(echo "$video" | jq '.timestamp' -r)
+    relative_timestamp=$(("$CURRENT_TIME" - "$timestamp"))
+    if [ "$relative_timestamp" -lt 60 ]; then
+      timestamp="刚刚"
+    elif [ "$relative_timestamp" -lt 3600 ]; then
+      timestamp=$((relative_timestamp / 60))
+      if [ "$timestamp" -eq 1 ]; then
+        timestamp="$timestamp 分钟前"
+      else
+        timestamp="$timestamp 分钟前"
+      fi
+    elif [ "$relative_timestamp" -lt 86400 ]; then
+      timestamp=$((relative_timestamp / 3600))
+      if [ "$relative_timestamp" -lt 7200 ]; then
+        timestamp="1 小时前"
+      else
+        timestamp=$((relative_timestamp / 3600))
+        timestamp="$timestamp 小时前"
+      fi
+    elif [ "$relative_timestamp" -lt 604800 ]; then
+      timestamp=$((relative_timestamp / 86400))
+      if [ "$timestamp" -eq 1 ]; then
+        timestamp="$timestamp 天前"
+      else
+        timestamp="$timestamp 天前"
+      fi
+    elif [ "$relative_timestamp" -lt 2635200 ]; then
+      timestamp=$((relative_timestamp / 604800))
+      if [ "$timestamp" -eq 1 ]; then
+        timestamp="$timestamp 周前"
+      else
+        timestamp="$timestamp 周前"
+      fi
+    elif [ "$relative_timestamp" -lt 31622400 ]; then
+      timestamp=$((relative_timestamp / 2635200))
+      if [ "$timestamp" -eq 1 ]; then
+        timestamp="$timestamp 个月前"
+      else
+        timestamp="$timestamp 个月前"
+      fi
+    else
+      timestamp=$((relative_timestamp / 31622400))
+      if [ "$timestamp" -eq 1 ]; then
+        timestamp="$timestamp 年前"
+      else
+        timestamp="$timestamp 年前"
+      fi
+    fi
+
+    printf "
+
+if [ -f \"$CLI_PREVIEW_IMAGES_CACHE_DIR/${preview_image}.jpg\" ];then fzf_preview \"$CLI_PREVIEW_IMAGES_CACHE_DIR/${preview_image}.jpg\" 2>/dev/null;
+else echo 正在加载预览图像...;
+fi
+ll=1
+while [ \$ll -le \$FZF_PREVIEW_COLUMNS ];do echo -n -e \"─\" ;(( ll++ ));done;
+echo
+
+echo \"$title\"
+
+ll=1
+while [ \$ll -le \$FZF_PREVIEW_COLUMNS ];do echo -n -e \"─\" ;(( ll++ ));done;
+printf \"${MAGENTA}${BOLD}频道: ${RESET}$channel\n\";
+printf \"${MAGENTA}${BOLD}时长: ${RESET}$duration\n\";
+printf \"${MAGENTA}${BOLD}观看次数: ${RESET}$view_count 次\n\";
+printf \"${MAGENTA}${BOLD}直播状态: ${RESET}$live_status\n\";
+printf \"${MAGENTA}${BOLD}上传时间: ${RESET}$timestamp\n\";
+
+ll=1
+while [ \$ll -le \$FZF_PREVIEW_COLUMNS ];do echo -n -e \"─\" ;(( ll++ ));done;
+echo
+
+
+! [ \"$description\" = \"null\" ] && echo -n \"%s\";
+
+" "$description" >"$CLI_PREVIEW_SCRIPTS_DIR/$(echo "$video" | jq ".title" -r | generate_sha256).txt"
+
+  done
+}
+
+download_preview_images() {
+  local url video filename
+
+  echo 正在后台生成预览...
+  generate_text_preview "$1" &
+
+  ids="$(echo "$1" | jq '.entries[].id' -r 2>/dev/null)"
+  urls="$(echo "$1" | jq '.entries[].thumbnails[-1].url' -r 2>/dev/null)"
+  [ -z "$ids" ] && return 1
+  [ -z "$urls" ] && return 1
+
+  [ -f "$CLI_PREVIEW_IMAGES_CACHE_DIR/previews.txt" ] && rm "$CLI_PREVIEW_IMAGES_CACHE_DIR/previews.txt"
+  lines="$(echo "$ids" | wc -l)"
+  for i in $(seq 1 "$lines"); do
+    video=$(echo "$1" | jq ".entries[$((i - 1))]")
+    url=$(echo "$urls" | head -n $i | tail -n 1)
+    filename=$(echo "$url" | generate_sha256)
+    if ! [ -s "$CLI_PREVIEW_IMAGES_CACHE_DIR/${filename}.jpg" ]; then
+      echo "url = \"${2}${url}\"" >>"$CLI_PREVIEW_IMAGES_CACHE_DIR/previews.txt"
+      echo "output = \"$CLI_PREVIEW_IMAGES_CACHE_DIR/${filename}.jpg\"" >>"$CLI_PREVIEW_IMAGES_CACHE_DIR/previews.txt"
+    fi
+  done
+  curl -s -K "$CLI_PREVIEW_IMAGES_CACHE_DIR/previews.txt" 2>/dev/null &
+}
+launcher_with_preview() {
+  case "$PREFERRED_SELECTOR" in
+  rofi)
+    if [ -z "$ROFI_THEME" ]; then
+      rofi_selection=$(while read -r line; do echo "$line" | sed -r 's/\x1B(\[[0-9;]*[a-zA-Z]|\(B)//g'; done | rofi -sort -matching fuzzy -dmenu -i -width 1500 -p "" -mesg "$1" -matching fuzzy -sorting-method fzf)
+      [ -z "$rofi_selection" ] && echo "Exit" || echo "$rofi_selection"
+    else
+      rofi_selection=$(while read -r line; do echo "$line" | sed -r 's/\x1B(\[[0-9;]*[a-zA-Z]|\(B)//g'; done | rofi -no-config -theme "$ROFI_THEME" -sort -matching fuzzy -dmenu -i -p "" -mesg "Select Action" -matching fuzzy -sorting-method fzf)
+      [ -z "$rofi_selection" ] && echo "Exit" || echo "$rofi_selection"
+    fi
+    ;;
+  *)
+    fzf \
+      --info=hidden \
+      --layout=reverse \
+      --height=100% \
+      --prompt="${1}: " \
+      --header-first --header="$CLI_HEADER" \
+      --preview-window=left,35%,wrap --bind=right:accept \
+      --expect=shift-left,shift-right --tabstop=1 \
+      --cycle --exact \
+      --ansi --preview="$2"
+    ;;
+  esac
+
+}
+init_pretty_print() {
+  if [ "$PRETTY_PRINT" = "true" ]; then
+    RED=$(tput setaf 1)
+    MAGENTA="\x1b[38;2;215;0;95m"
+    CYAN=$(tput setaf 6)
+    BOLD=$(tput bold)
+    RESET=$(tput sgr0)
+  fi
+}
+byebye() {
+  clear
+  echo "祝您一天愉快 $USERNAME"
+  exit "${1:-0}"
+}
+prompt() {
+  if [ "$PREFERRED_SELECTOR" = "rofi" ]; then
+    rofi -dmenu -p "$1: "
+  elif command -v "gum" >/dev/null 2>&1; then
+    gum input --header "$CLI_HEADER" --prompt "$1: " --value "$2"
+  else
+    echo "$CLI_HEADER" >/dev/stderr
+    printf "%s: " "$1" >/dev/stderr
+    read -r VAL
+    echo "$VAL"
+  fi
+}
+run_yt_dlp() {
+  if command -v "gum" >/dev/null 2>&1; then
+    gum spin --show-output -- yt-dlp "$1" -J --flat-playlist --extractor-args youtubetab:approximate_date --playlist-start "$PLAYLIST_START" --playlist-end "$PLAYLIST_END" $PREFERRED_BROWSER || send_notification "获取数据失败 : ("
+  else
+    echo "加载中..." >/dev/stderr
+    yt-dlp "$1" -J --flat-playlist --extractor-args youtubetab:approximate_date --playlist-start "$PLAYLIST_START" --playlist-end "$PLAYLIST_END" $PREFERRED_BROWSER || send_notification "获取数据失败 : ("
+  fi
+}
+
+core_dep_ch() {
+  ! command -v "yt-dlp" >/dev/null 2>&1 && echo yt-dlp未安装，这是核心依赖项，请安装后再继续 && exit 1
+  ! command -v "jq" >/dev/null 2>&1 && echo jq未安装，这是核心依赖项，请安装后再继续 && exit 1
+  ! command -v "fzf" >/dev/null 2>&1 && echo fzf未安装，这是核心依赖项，请安装后再继续 && exit 1
+}
+trap byebye INT TERM
+PREVIEW_SCRIPT_FOR_VIDEOS="
+
+  title={}
+  id=\$(echo {} | generate_sha256)
+  if  [ -f \"$CLI_PREVIEW_SCRIPTS_DIR/\${id}.txt\" ];then
+    . \"$CLI_PREVIEW_SCRIPTS_DIR/\${id}.txt\";
+  else
+    echo 加载预览中...
+  fi
+"
+PREVIEW_SCRIPT_FOR_CHANNELS="
+
+  MAGENTA='\x1b[38;2;215;0;95m'
+  BOLD=\$(tput bold)
+  RESET=\$(tput sgr0)
+
+  if ! [ -z {} ] && ! [ {} = \"Back\" ] && ! [ {} = \"Exit\" ] && ! [ {} = \"主菜单\" ];then
+    channels_data=\$(cat \"\$CLI_CONFIG_DIR/subscriptions.json\")
+    title=\"\$(echo {}|sed 's/\"/\\\\\\\"/g')\"
+    video=\$(echo \"\$channels_data\" | jq -r \".entries | map(select(.title == \\\"\$title\\\" )) | .[0]\" 2>/dev/null)
+
+    id=\$(echo \$video |jq '.thumbnails[-1].url' -r | generate_sha256);
+
+    channel=\$(echo \"\$video\"| jq '.channel' -r);
+
+    channel_follower_count=\$(echo \"\$video\"| jq -r '
+    .channel_follower_count
+    |tostring
+    |split(\"\")
+    |reverse
+    |join(\"\")
+    |gsub(\"(?<thousands>[0-9]\\{3})(?=[0-9])\"; \"\\(.thousands),\")
+    |split(\"\")
+    |reverse
+    |join(\"\")
+    '
+    );
+
+    description=\$(echo \"\$video\"| jq '.description' -r);
+
+    if [ -f \"$CLI_PREVIEW_IMAGES_CACHE_DIR/\${id}.jpg\" ];then fzf_preview \"$CLI_PREVIEW_IMAGES_CACHE_DIR/\${id}.jpg\" 2>/dev/null;
+    else echo 正在加载预览图像...;
+    fi
+
+    ll=1
+    while [ \$ll -le \$FZF_PREVIEW_COLUMNS ];do echo -n -e \"─\" ;(( ll++ ));done;
+    # printf \"\${MAGENTA}\${BOLD}Id: \${RESET}\$id\n\";
+    printf \"\${MAGENTA}\${BOLD}频道: \${RESET}\$channel\n\";
+    printf \"\${MAGENTA}\${BOLD}粉丝数: \${RESET}\$channel_follower_count 人\n\";
+
+    ll=1
+    while [ \$ll -le \$FZF_PREVIEW_COLUMNS ];do echo -n -e \"─\" ;(( ll++ ));done;
+    ! [ \"\$description\" = \"null\" ] && echo -e \"\$description\";
+  else
+    echo 加载中...;
+  fi;
+"
+
+PREVIEW_SCRIPT_FOR_CHANNELS_EXPLORER="
+
+  MAGENTA='\x1b[38;2;215;0;95m'
+  BOLD=\$(tput bold)
+  RESET=\$(tput sgr0)
+
+  if ! [ -z {} ] && ! [ {} = \"返回\" ] && ! [ {} = \"退出\" ] && ! [ {} = \"主菜单\" ];then
+    # channels_data=\$(cat \"\$CLI_CONFIG_DIR/subscriptions.json\")
+    title=\"\$(echo {}|sed 's/\"/\\\\\\\"/g')\"
+    video=\$(echo \"\$channels_data\" | jq -r \".entries | map(select(.title == \\\"\$title\\\" )) | .[0]\" 2>/dev/null)
+
+    id=\$(echo \$video | jq '.thumbnails[-1].url' -r | generate_sha256);
+
+    channel=\$(echo \"\$video\"| jq '.channel' -r);
+
+    channel_follower_count=\$(echo \"\$video\"| jq -r '
+    .channel_follower_count
+    |tostring
+    |split(\"\")
+    |reverse
+    |join(\"\")
+    |gsub(\"(?<thousands>[0-9]\\{3})(?=[0-9])\"; \"\\(.thousands),\")
+    |split(\"\")
+    |reverse
+    |join(\"\")
+    '
+    );
+
+    description=\$(echo \"\$video\"| jq '.description' -r);
+
+    if [ -f \"$CLI_PREVIEW_IMAGES_CACHE_DIR/\${id}.jpg\" ];then fzf_preview \"$CLI_PREVIEW_IMAGES_CACHE_DIR/\${id}.jpg\" 2>/dev/null;
+    else echo 正在加载预览图像...;
+    fi
+
+    ll=1
+    while [ \$ll -le \$FZF_PREVIEW_COLUMNS ];do echo -n -e \"─\" ;(( ll++ ));done;
+    # printf \"\${MAGENTA}\${BOLD}Id: \${RESET}\$id\n\";
+    printf \"\${MAGENTA}\${BOLD}频道: \${RESET}\$channel\n\";
+    printf \"\${MAGENTA}\${BOLD}粉丝数: \${RESET}\$channel_follower_count 人\n\";
+
+    ll=1
+    while [ \$ll -le \$FZF_PREVIEW_COLUMNS ];do echo -n -e \"─\" ;(( ll++ ));done;
+    ! [ \"\$description\" = \"null\" ] && echo -e \"\$description\";
+  else
+    echo 加载中...;
+  fi;
+"
+PREVIEW_SCRIPT_FOR_PLAYLISTS_EXPLORER="
+
+  MAGENTA='\x1b[38;2;215;0;95m'
+  BOLD=\$(tput bold)
+  RESET=\$(tput sgr0)
+
+  if ! [ -z {} ] && ! [ {} = \"返回\" ] && ! [ {} = \"退出\" ] && ! [ {} = \"主菜单\" ];then
+    # channels_data=\$(cat \"\$CLI_CONFIG_DIR/subscriptions.json\")
+    title=\"\$(echo {}|sed 's/\"/\\\\\\\"/g')\"
+    video=\$(echo \"\$playlist_results\" | jq -r \".entries | map(select(.title == \\\"\$title\\\" )) | .[0]\" 2>/dev/null)
+    title=\"\$(echo \"\$title\"|sed 's/^.. //g')\"
+
+    id=\$(echo \$video | jq '.thumbnails[-1].url' -r | generate_sha256);
+
+
+    if [ -f \"$CLI_PREVIEW_IMAGES_CACHE_DIR/\${id}.jpg\" ];then fzf_preview \"$CLI_PREVIEW_IMAGES_CACHE_DIR/\${id}.jpg\" 2>/dev/null;
+    else echo 正在加载预览图像...;
+    fi
+
+    ll=1
+    while [ \$ll -le \$FZF_PREVIEW_COLUMNS ];do echo -n -e \"─\" ;(( ll++ ));done;
+      echo \"\$title\";
+    ll=1
+    while [ \$ll -le \$FZF_PREVIEW_COLUMNS ];do echo -n -e \"─\" ;(( ll++ ));done;
+  else
+    echo 加载中...;
+  fi;
+"
+
+playlist_explorer() {
+  SHELL="bash"
+  DOWNLOAD_IMAGES=0
+  while true; do
+    [ "$DOWNLOAD_IMAGES" = 0 ] &&
+      search_results=$(echo "$search_results" | jq "
+          .entries=(.entries
+          | to_entries
+          | map(.value.title=\"\(.key+1|tostring| if (.|length) < 2 then \"0\" + . else . end) \"+.value.title)
+          |map(.value))
+          ") && ! [ "$ENABLE_PREVIEW" = "true" ] || ! [ "$PREFERRED_SELECTOR" = "fzf" ] && DOWNLOAD_IMAGES=1
+    titles=$(echo "$search_results" | jq '.entries[].title' -r 2>/dev/null)
+    [ "$ENABLE_PREVIEW" = "true" ] && [ "$PREFERRED_SELECTOR" = "fzf" ] && [ "$DOWNLOAD_IMAGES" = 0 ] && download_preview_images "$search_results" "" && DOWNLOAD_IMAGES=1
+    export search_results SHELL
+    if [ "$ENABLE_PREVIEW" = "true" ]; then
+      title="$(printf "%s\n下一页\n上一页\n${CYAN}󰌍${RESET}  返回\n${CYAN}󰍜${RESET}  主菜单\n${RED}󰈆${RESET}  退出" "$titles" | launcher_with_preview "选择视频" "$PREVIEW_SCRIPT_FOR_VIDEOS" | tr -d '\n' | sed 's/^[^0-9]  //g')"
+    else
+      title="$(printf "%s\n下一页\n上一页\n返回\n主菜单\n退出" "$titles" | launcher "选择视频" | tr -d '\n' | sed 's/^[^0-9]  //g')"
+    fi
+    clear
+    title="$(echo "$title" | sed 's/"/\\"/g')"
+    case "$title" in
+    下一页)
+      PLAYLIST_START=$((PLAYLIST_START + "$NO_OF_SEARCH_RESULTS"))
+      PLAYLIST_END=$((PLAYLIST_END + "$NO_OF_SEARCH_RESULTS"))
+      search_results=$(run_yt_dlp "$url")
+      DOWNLOAD_IMAGES=0
+      continue
+      ;;
+    上一页)
+      PLAYLIST_START=$((PLAYLIST_START - "$NO_OF_SEARCH_RESULTS"))
+      [ $PLAYLIST_START -le 0 ] && PLAYLIST_START=1
+      PLAYLIST_END=$((PLAYLIST_END - "$NO_OF_SEARCH_RESULTS"))
+      [ $PLAYLIST_END -le "$NO_OF_SEARCH_RESULTS" ] && PLAYLIST_END="$NO_OF_SEARCH_RESULTS"
+      search_results=$(run_yt_dlp "$url")
+      DOWNLOAD_IMAGES=0
+      continue
+      ;;
+    "主菜单")
+      break
+      ;;
+    返回|"")
+      break
+      ;;
+    退出)
+      byebye
+      ;;
+    esac
+    id=$(echo "$title" | sed -E 's/^([0-9]+) .*/\1/g')
+    video="$(echo "$search_results" | jq ".entries[$((id - 1))]")"
+    title=$(echo "$video" | jq '.title' -r | sed 's/^[0-9]\+ //g')
+
+    while true; do
+      media_action="$(printf "\
+${CYAN}${RESET}  观看
+${CYAN}${RESET}  播放全部
+${CYAN}󰎆${RESET}  听音频
+${CYAN}${RESET}  听全部音频
+${CYAN}${RESET}  混合列表
+${CYAN}${RESET}  保存
+${CYAN}󰧎${RESET}  取消保存
+${CYAN}󰐒${RESET}  保存播放列表
+${CYAN}󰵀${RESET}  订阅频道
+${CYAN}󱑤${RESET}  下载
+${CYAN}󰦗${RESET}  下载全部
+${CYAN}󱑤${RESET}  下载（仅音频）
+${CYAN}󰦗${RESET}  下载全部（仅音频）
+${CYAN}${RESET}  在浏览器中打开
+${CYAN}${RESET}  切换下载编号
+${CYAN}${RESET}  命令行
+${CYAN}󰌍${RESET}  返回
+${RED}󰈆${RESET}  退出" | launcher "选择媒体操作" | sed 's/.  //g')"
+      clear
+      case "$media_action" in
+      "播放全部")
+        if echo "$url" | grep -q "list=RD" || echo "$urlForAll" | grep -q "list=RD" || [ "$(echo "$search_results" | jq 'has("uploader_url") | not')" = "true" ]; then
+          if [ -n "$urlForAll" ]; then
+            cached_playlist="$CLI_AUTO_GEN_PLAYLISTS/$(generate_sha256 "$urlForAll").m3u8"
+            if ! [ -s "$cached_playlist" ]; then
+              _mix_data=$(yt-dlp "$urlForAll" --flat-playlist -J)
+              [ -z "$_mix_data" ] && send_notification "获取混合数据失败" && continue
+              echo '#EXTM3U' >>"$cached_playlist"
+
+              lines="$(echo "$_mix_data" | jq '.entries[].url' -r | wc -l)"
+              for i in $(seq 1 "$lines"); do
+                local _video
+                local _title
+                local _channel
+                local _url
+                _video=$(echo "$_mix_data" | jq ".entries[$((i - 1))]")
+                _title=$(echo "$_video" | jq ".title" -r)
+                _channel=$(echo "$_video" | jq '.channel' -r)
+                _url=$(echo "$_video" | jq '.url' -r)
+                echo "#EXTINF:-1,$_title" >>"$cached_playlist"
+                echo "$_url" >>"$cached_playlist"
+                # echo "#EXTALB:Album Name" >>"$cached_playlist"
+                # echo "#EXTGENRE:Genre" >>"$cached_playlist"
+                # echo "#EXTGRP:Group Name" >>"$cached_playlist"
+                echo "" >>"$cached_playlist"
+              done
+            fi
+            mpv "$cached_playlist"
+          else
+            cached_playlist="$CLI_AUTO_GEN_PLAYLISTS/$(generate_sha256 "$url").m3u8"
+
+            if ! [ -s "$cached_playlist" ]; then
+              _mix_data=$(yt-dlp "url" --flat-playlist -J)
+              [ -z "$_mix_data" ] && send_notification "获取混合数据失败" && continue
+              echo '#EXTM3U' >>"$cached_playlist"
+
+              lines="$(echo "$_mix_data" | jq '.entries[].url' -r | wc -l)"
+              for i in $(seq 1 "$lines"); do
+                local _video
+                local _title
+                local _channel
+                local _url
+                _video=$(echo "$_mix_data" | jq ".entries[$((i - 1))]")
+                _title=$(echo "$_video" | jq ".title" -r)
+                _channel=$(echo "$_video" | jq '.channel' -r)
+                _url=$(echo "$_video" | jq '.url' -r)
+                echo "#EXTINF:-1,$_title" >>"$cached_playlist"
+                echo "$_url" >>"$cached_playlist"
+                # echo "#EXTALB:Album Name" >>"$cached_playlist"
+                # echo "#EXTGENRE:Genre" >>"$cached_playlist"
+                # echo "#EXTGRP:Group Name" >>"$cached_playlist"
+                echo "" >>"$cached_playlist"
+              done
+            fi
+            mpv "$cached_playlist"
+          fi
+        else
+          if [ -n "$urlForAll" ]; then
+            mpv "$urlForAll"
+          else
+            mpv "$url"
+          fi
+        fi
+        ;;
+      "听全部音频")
+        if echo "$url" | grep -q "list=RD" || echo "$urlForAll" | grep -q "list=RD" || [ "$(echo "$search_results" | jq 'has("uploader_url") | not')" = "true" ]; then
+          if [ -n "$urlForAll" ]; then
+            cached_playlist="$CLI_AUTO_GEN_PLAYLISTS/$(generate_sha256 "$urlForAll").m3u8"
+
+            if ! [ -s "$cached_playlist" ]; then
+              _mix_data=$(yt-dlp "$urlForAll" --flat-playlist -J)
+              [ -z "$_mix_data" ] && send_notification "获取混合数据失败" && continue
+              echo '#EXTM3U' >>"$cached_playlist"
+
+              lines="$(echo "$_mix_data" | jq '.entries[].url' -r | wc -l)"
+              for i in $(seq 1 "$lines"); do
+                local _video
+                local _title
+                local _channel
+                local _url
+                _video=$(echo "$_mix_data" | jq ".entries[$((i - 1))]")
+                _title=$(echo "$_video" | jq ".title" -r)
+                _channel=$(echo "$_video" | jq '.channel' -r)
+                _url=$(echo "$_video" | jq '.url' -r)
+                echo "#EXTINF:-1,$_title" >>"$cached_playlist"
+                echo "$_url" >>"$cached_playlist"
+                # echo "#EXTALB:Album Name" >>"$cached_playlist"
+                # echo "#EXTGENRE:Genre" >>"$cached_playlist"
+                # echo "#EXTGRP:Group Name" >>"$cached_playlist"
+                echo "" >>"$cached_playlist"
+              done
+            fi
+            mpv "$cached_playlist" --no-video
+          else
+            cached_playlist="$CLI_AUTO_GEN_PLAYLISTS/$(generate_sha256 "$url").m3u8"
+            if ! [ -s "$cached_playlist" ]; then
+              _mix_data=$(yt-dlp "$url" --flat-playlist -J)
+              [ -z "$_mix_data" ] && send_notification "获取混合数据失败" && continue
+              echo '#EXTM3U' >>"$cached_playlist"
+
+              lines="$(echo "$_mix_data" | jq '.entries[].url' -r | wc -l)"
+              for i in $(seq 1 "$lines"); do
+                local _video
+                local _title
+                local _channel
+                local _url
+                _video=$(echo "$_mix_data" | jq ".entries[$((i - 1))]")
+                _title=$(echo "$_video" | jq ".title" -r)
+                _channel=$(echo "$_video" | jq '.channel' -r)
+                _url=$(echo "$_video" | jq '.url' -r)
+                echo "#EXTINF:-1,$_title" >>"$cached_playlist"
+                echo "$_url" >>"$cached_playlist"
+                # echo "#EXTALB:Album Name" >>"$cached_playlist"
+                # echo "#EXTGENRE:Genre" >>"$cached_playlist"
+                # echo "#EXTGRP:Group Name" >>"$cached_playlist"
+                echo "" >>"$cached_playlist"
+              done
+            fi
+            mpv "$cached_playlist" --no-video
+          fi
+        else
+          if [ -n "$urlForAll" ]; then
+            mpv "$urlForAll" --no-video
+          else
+            mpv "$url" --no-video
+          fi
+        fi
+        ;;
+      "切换下载编号")
+        if [ "$enumerate_playlist" = "" ]; then
+          enumerate_playlist="%(playlist_index)s - "
+        else
+          enumerate_playlist=""
+        fi
+        ;;
+      "下载全部")
+        playlist_name=$(prompt "播放列表名称" "$playlist_title")
+        if [ -n "$urlForAll" ]; then
+          yt_dlp_cmd=("yt-dlp" "$urlForAll" "--output" "$DOWNLOAD_DIRECTORY/videos/$playlist_name/%(channel)s/$enumerate_playlist%(title)s.%(ext)s" $PREFERRED_BROWSER)
+          "${yt_dlp_cmd[@]}" --download-archive "$CLI_YT_DLP_ARCHIVE/$(echo -n -- "${yt_dlp_cmd[@]}" | generate_sha256)"
+        else
+          yt_dlp_cmd=("yt-dlp" "$url" "--output" "$DOWNLOAD_DIRECTORY/videos/$playlist_name/%(channel)s/$enumerate_playlist%(title)s.%(ext)s" $PREFERRED_BROWSER)
+          "${yt_dlp_cmd[@]}" --download-archive "$CLI_YT_DLP_ARCHIVE/$(echo -n -- "${yt_dlp_cmd[@]}" | generate_sha256)"
+        fi
+        send_notification "已完成下载 $playlist_name"
+        ;;
+      "下载全部（仅音频）")
+        playlist_name=$(prompt "播放列表名称" "$playlist_title")
+
+        if [ -n "$urlForAll" ]; then
+          yt_dlp_cmd=("yt-dlp" "$urlForAll" "--audio-format" "mp3" '-x' '-f' 'bestaudio/best' "--output" "$DOWNLOAD_DIRECTORY/audio/$playlist_name/%(channel)s/$enumerate_playlist%(title)s.%(ext)s" $PREFERRED_BROWSER)
+          "${yt_dlp_cmd[@]}" --download-archive "$CLI_YT_DLP_ARCHIVE/$(echo -n -- "${yt_dlp_cmd[@]}" | generate_sha256)"
+        else
+          yt_dlp_cmd=("yt-dlp" "$url" "--audio-format" "mp3" '-x' '-f' 'bestaudio/best' "--output" "$DOWNLOAD_DIRECTORY/audio/$playlist_name/%(channel)s/$enumerate_playlist%(title)s.%(ext)s" $PREFERRED_BROWSER)
+          "${yt_dlp_cmd[@]}" --download-archive "$CLI_YT_DLP_ARCHIVE/$(echo -n -- "${yt_dlp_cmd[@]}" | generate_sha256)"
+        fi
+        send_notification "已完成下载 $playlist_name"
+        ;;
+      听音频)
+        printf "${MAGENTA}正在收听:${RESET} $title\n"
+        video_url=$(echo "$video" | jq '.url' -r)
+        if echo "$video_url" | grep -q "list=RD"; then
+          video_id=$(echo "$video" | jq '.id' -r | sed 's/RD//g')
+          cached_playlist="$CLI_AUTO_GEN_PLAYLISTS/$(generate_sha256 "https://www.youtube.com/watch?v=${video_id}&list=RD$video_id").m3u8"
+          if ! [ -s "$cached_playlist" ]; then
+            _mix_data=$(yt-dlp "https://www.youtube.com/watch?v=${video_id}&list=RD$video_id" --flat-playlist -J)
+            [ -z "$_mix_data" ] && send_notification "获取混合数据失败" && continue
+            echo '#EXTM3U' >>"$cached_playlist"
+
+            lines="$(echo "$_mix_data" | jq '.entries[].url' -r | wc -l)"
+            for i in $(seq 1 "$lines"); do
+              local _video
+              local _title
+              local _channel
+              local _url
+              _video=$(echo "$_mix_data" | jq ".entries[$((i - 1))]")
+              _title=$(echo "$_video" | jq ".title" -r)
+              _channel=$(echo "$_video" | jq '.channel' -r)
+              _url=$(echo "$_video" | jq '.url' -r)
+              echo "#EXTINF:-1,$_title" >>"$cached_playlist"
+              echo "$_url" >>"$cached_playlist"
+              # echo "#EXTALB:Album Name" >>"$cached_playlist"
+              # echo "#EXTGENRE:Genre" >>"$cached_playlist"
+              # echo "#EXTGRP:Group Name" >>"$cached_playlist"
+              echo "" >>"$cached_playlist"
+            done
+          fi
+          mpv "$cached_playlist" --no-video
+        else
+          if ! [ "$PLAYER" = mpv ] || [ "$PLATFORM" = android ]; then
+            video_url=$(yt-dlp "$video_url" -q --no-warnings --get-url --format "bestaudio/best[height<=$VIDEO_QUALITY]/best" 2>/dev/null | tail -n 1)
+            if ! [ "$?" = 0 ] || [ -z "$video_url" ]; then
+              echo 未找到视频格式
+              sleep 5
+              break
+            fi
+          fi
+          case "$PLATFORM" in
+          android)
+            case "$PLAYER" in
+            mpv) nohup am start --user 0 -a android.intent.action.VIEW -d "$video_url" -n is.xyz.mpv/.MPVActivity >/dev/null 2>&1 & ;;
+            vlc) nohup am start --user 0 -a android.intent.action.VIEW -d "$video_url" -n org.videolan.vlc/org.videolan.vlc.gui.video.VideoPlayerActivity -e "title" "$title" >/dev/null 2>&1 & ;;
+            esac
+            ;;
+          *)
+            case "$PLAYER" in
+            mpv)
+              mpv "$video_url" --no-video
+              ;;
+            vlc) vlc "$video_url" --video-title "$title" ;;
+            esac
+            ;;
+          esac
+
+        fi
+
+        current_recent_videos='{"entries":[]}'
+        [ -s "$CLI_CONFIG_DIR/recent.json" ] && current_recent_videos=$(cat "$CLI_CONFIG_DIR/recent.json")
+        id=$(echo "$video" | jq '.id' -r)
+        echo "$current_recent_videos" | jq "{\"entries\":[.entries[] | select(.id != \"$id\")]}|.entries+=[$(echo "$video" | jq '.title |= sub("^[0-9]+ "; "")')]" | jq "{\"entries\":.entries[-$NO_OF_RECENT:]}" >"$CLI_CONFIG_DIR/recent.json"
+        ;;
+      混合列表)
+        local url0 _search_results
+        video_id=$(echo "$video" | jq '.id' -r)
+        url0=$urlForAll
+        urlForAll="https://www.youtube.com/watch?v=${video_id}&list=RD$video_id"
+
+        _search_results="$search_results"
+        search_results=$(
+          if command -v "gum" >/dev/null 2>&1; then
+            gum spin --show-output -- yt-dlp "$urlForAll" -J --flat-playlist --extractor-args youtubetab:approximate_date $PREFERRED_BROWSER $PLAYLISTS_EXTRA_ARGS --playlist-start 1 --playlist-end $NO_OF_SEARCH_RESULTS
+          else
+            echo "加载中..." >/dev/stderr
+            yt-dlp "$urlForAll" -J --flat-playlist --extractor-args youtubetab:approximate_date $PREFERRED_BROWSER $PLAYLISTS_EXTRA_ARGS --playlist-start 1 --playlist-end $NO_OF_SEARCH_RESULTS
+          fi
+        )
+        playlist_explorer
+        urlForAll=$url0
+        search_results="$_search_results"
+        ;;
+      观看)
+        printf "${MAGENTA}正在观看:${RESET} $title\n"
+
+        video_url=$(echo "$video" | jq '.url' -r)
+        if echo "$video_url" | grep -q "list=RD"; then
+          local _mix_data
+          video_id=$(echo "$video" | jq '.id' -r | sed 's/RD//g')
+
+          cached_playlist="$CLI_AUTO_GEN_PLAYLISTS/$(generate_sha256 "https://www.youtube.com/watch?v=${video_id}&list=RD$video_id").m3u8"
+
+          if ! [ -s "$cached_playlist" ]; then
+            _mix_data=$(yt-dlp "https://www.youtube.com/watch?v=${video_id}&list=RD$video_id" --flat-playlist -J)
+            [ -z "$_mix_data" ] && send_notification "获取混合数据失败" && continue
+            echo '#EXTM3U' >>"$cached_playlist"
+
+            lines="$(echo "$_mix_data" | jq '.entries[].url' -r | wc -l)"
+            for i in $(seq 1 "$lines"); do
+              local _video
+              local _title
+              local _channel
+              local _url
+              _video=$(echo "$_mix_data" | jq ".entries[$((i - 1))]")
+              _title=$(echo "$_video" | jq ".title" -r)
+              _channel=$(echo "$_video" | jq '.channel' -r)
+              _url=$(echo "$_video" | jq '.url' -r)
+              echo "#EXTINF:-1,$_title" >>"$cached_playlist"
+              echo "$_url" >>"$cached_playlist"
+              # echo "#EXTALB:Album Name" >>"$cached_playlist"
+              # echo "#EXTGENRE:Genre" >>"$cached_playlist"
+              # echo "#EXTGRP:Group Name" >>"$cached_playlist"
+              echo "" >>"$cached_playlist"
+            done
+          fi
+          mpv "$cached_playlist"
+        else
+          if ! [ "$PLAYER" = mpv ] || [ "$PLATFORM" = android ]; then
+            video_url=$(yt-dlp "$video_url" -q --no-warnings --get-url --format "best[height<=$VIDEO_QUALITY]/best" 2>/dev/null | tail -n 1)
+            if ! [ "$?" = 0 ] || [ -z "$video_url" ]; then
+              echo 未找到视频格式
+              sleep 5
+              break
+            fi
+          fi
+          case "$PLATFORM" in
+          android)
+            case "$PLAYER" in
+            mpv) nohup am start --user 0 -a android.intent.action.VIEW -d "$video_url" -n is.xyz.mpv/.MPVActivity >/dev/null 2>&1 & ;;
+            vlc) nohup am start --user 0 -a android.intent.action.VIEW -d "$video_url" -n org.videolan.vlc/org.videolan.vlc.gui.video.VideoPlayerActivity -e "title" "$title" >/dev/null 2>&1 & ;;
+            esac
+            ;;
+          *)
+            case "$PLAYER" in
+            mpv)
+              mpv "$video_url"
+              ;;
+            vlc) vlc "$video_url" --video-title "$title" ;;
+            esac
+            ;;
+          esac
+
+        fi
+
+        current_recent_videos='{"entries":[]}'
+        [ -s "$CLI_CONFIG_DIR/recent.json" ] && current_recent_videos=$(cat "$CLI_CONFIG_DIR/recent.json")
+        id=$(echo "$video" | jq '.id' -r)
+        echo "$current_recent_videos" | jq "{\"entries\":[.entries[] | select(.id != \"$id\")]}|.entries+=[$(echo "$video" | jq '.title |= sub("^[0-9]+ "; "")')]" | jq "{\"entries\":.entries[-$NO_OF_RECENT:]}" >"$CLI_CONFIG_DIR/recent.json"
+        ;;
+      保存)
+        # For now a pseudo like feature is just as useful
+        current_liked_videos='{"entries":[]}'
+        [ -s "$CLI_CONFIG_DIR/saved_videos.json" ] && current_liked_videos=$(cat "$CLI_CONFIG_DIR/saved_videos.json")
+        id=$(echo "$video" | jq '.id' -r)
+        echo "$current_liked_videos" | jq "{\"entries\":[.entries[] | select(.id != \"$id\")]}|.entries+=[$(echo "$video" | jq '.title |= sub("^[0-9]+ "; "")')]" >"$CLI_CONFIG_DIR/saved_videos.json"
+        ;;
+      保存播放列表)
+        # For now a pseudo like feature is just as useful
+        custom_playlists="[]"
+        [ -s "$CLI_CONFIG_DIR/custom_playlists.json" ] && custom_playlists=$(cat "$CLI_CONFIG_DIR/custom_playlists.json")
+        playlist_name=$(prompt "输入播放列表名称" "$playlist_title")
+        if [ -n "$urlForAll" ]; then
+          playlist_id=$(echo "$urlForAll" | sed 's/.*list=//g')
+        else
+          playlist_id=$(echo "$url" | sed 's/.*list=//g')
+        fi
+        custom_playlist="
+          {
+            \"name\": \"$playlist_name\",
+            \"playlistUrl\": \"https://www.youtube.com/playlist?list=$playlist_id\",
+            \"playlistWatchUrl\": \"https://www.youtube.com/watch?list=$playlist_id\"
+          }
+        "
+        echo "$custom_playlists" | jq ".+=[$custom_playlist]" >"$CLI_CONFIG_DIR/custom_playlists.json" && send_notification "成功添加到自定义播放列表" || send_notification "添加到自定义播放列表失败"
+        ;;
+      取消保存)
+        current_liked_videos='{"entries":[]}'
+        [ -s "$CLI_CONFIG_DIR/saved_videos.json" ] && current_liked_videos=$(cat "$CLI_CONFIG_DIR/saved_videos.json")
+        id=$(echo "$video" | jq '.id' -r)
+        echo "$current_liked_videos" | jq "{\"entries\":[.entries[] | select(.id != \"$id\")]}" >"$CLI_CONFIG_DIR/saved_videos.json"
+        ;;
+      "订阅频道")
+        # TODO: use youtube api to enable video subscriptions
+        echo 通过添加此功能为项目做出贡献
+        sleep "$NOTIFICATION_DURATION"
+        ;;
+      "访问频道")
+        # TODO: use youtube api to enable video subscriptions
+        send_notification "通过添加此功能为项目做出贡献"
+        ;;
+      "在浏览器中打开")
+        if command -v "open" >/dev/null 2>&1; then
+          open "$(echo "$video" | jq '.url' -r)"
+        elif command -v "xdg-open" >/dev/null 2>&1; then
+          xdg-open "$(echo "$video" | jq '.url' -r)"
+        else
+          send_notification "找不到 xdg-open 或 open"
+        fi
+        ;;
+      下载)
+        video_url=$(echo "$video" | jq '.url' -r)
+        yt-dlp "$video_url" --output "$DOWNLOAD_DIRECTORY/videos/individual/%(channel)s/%(title)s.%(ext)s" $PREFERRED_BROWSER
+        send_notification "已完成下载 $title"
+        ;;
+      "下载（仅音频）")
+        video_url=$(echo "$video" | jq '.url' -r)
+        yt-dlp "$video_url" -x -f 'bestaudio' --audio-format mp3 --output "$DOWNLOAD_DIRECTORY/audio/individual/%(channel)s/%(title)s.%(ext)s" $PREFERRED_BROWSER
+        send_notification "已完成下载 $title"
+        ;;
+      返回|"")
+        break
+        ;;
+      命令行)
+        video_url=$(echo "$video" | jq '.url' -r)
+        export url urlForAll search_results video video_url playlist_title CLI_HEADER CLI_NAME DOWNLOAD_DIRECTORY CLI_YT_DLP_ARCHIVE
+        local init_text="\
+$CLI_HEADER
+欢迎使用 $CLI_NAME 命令行。
+您可以使用以下内容：
+ 变量：
+    - url
+    - urlForAll
+    - search_results
+    - video
+    - video_url
+    - playlist_title
+    - DOWNLOAD_DIRECTORY
+    - CLI_YT_DLP_ARCHIVE
+  函数：
+    - generate_sha256
+"
+        user_shell="$(ps -o comm= -p "$PPID")"
+        if [ "$user_shell" = "fish" ]; then
+          fish --init-command "function fish_greeting; clear;echo \"$init_text\"; end"
+        else
+          bash --rcfile <(echo "[ -f ~/.bashrc ] && . ~/.bashrc;clear;echo \"$init_text\"")
+        fi
+
+        ;;
+      退出)
+        byebye
+        ;;
+      *)
+        echo 无效操作
+        sleep "$NOTIFICATION_DURATION"
+        ;;
+      esac
+      clear
+    done
+  done
+  unset urlForAll
+  unset search_results
+  PLAYLIST_START="1"
+  PLAYLIST_END="$NO_OF_SEARCH_RESULTS"
+}
+get_channels_data() {
+  [ "$FORCE_CHANNEL_THUMBNAILS_DOWNLOAD" = "0" ] && download_preview_images "$channels_data" "https:"
+  if [ -f "$CLI_CONFIG_DIR/subscriptions.json" ] && ! [ "$force_update" = "1" ]; then
+    channels_data=$(cat "$CLI_CONFIG_DIR/subscriptions.json")
+  else
+    echo 加载订阅中...
+    [ -n "$PREFERRED_BROWSER" ] && channels_data=$(yt-dlp "https://www.youtube.com/feed/channels" --flat-playlist $PREFERRED_BROWSER -J) || send_notification "获取订阅失败（请在配置中设置首选浏览器"
+    ! [ "$FORCE_CHANNEL_THUMBNAILS_DOWNLOAD" = "0" ] && [ "$ENABLE_PREVIEW" = "true" ] && download_preview_images "$channels_data" "https:"
+    [ -n "$channels_data" ] && ! [ "$channels_data" = "null" ] && echo "$channels_data" >"$CLI_CONFIG_DIR/subscriptions.json" || send_notification "获取订阅失败"
+    clear
+  fi
+}
+playlists_explorer() {
+  playlist_results=$(
+    if command -v "gum" >/dev/null 2>&1; then
+      gum spin --show-output -- yt-dlp "$url" -J --flat-playlist --extractor-args youtubetab:approximate_date $PREFERRED_BROWSER $PLAYLISTS_EXTRA_ARGS
+    else
+      echo "加载中..." >/dev/stderr
+      yt-dlp "$url" -J --flat-playlist --extractor-args youtubetab:approximate_date $PREFERRED_BROWSER $PLAYLISTS_EXTRA_ARGS
+    fi
+  )
+  playlist_results=$(echo "$playlist_results" | jq "
+          .entries=(.entries
+          | to_entries
+          | map(.value.title=\"\(.key+1|tostring| if (.|length) < 2 then \"0\" + . else . end) \"+.value.title)
+          |map(.value))
+          ")
+  playlist_video_titles=$(echo "$playlist_results" | jq '.entries[].title' -r 2>/dev/null)
+  [ "$ENABLE_PREVIEW" = "true" ] && [ "$PREFERRED_SELECTOR" = "fzf" ] && download_preview_images "$playlist_results" ""
+  export playlist_results SHELL
+  while true; do
+    if [ "$ENABLE_PREVIEW" = "true" ]; then
+
+      playlist_title="$(printf "%s\n${CYAN}󰌍${RESET}  返回\n${RED}󰈆${RESET}  退出" "$playlist_video_titles" | launcher_with_preview "选择视频" "$PREVIEW_SCRIPT_FOR_PLAYLISTS_EXPLORER" | tr -d '\n' | sed 's/^[^0-9]  //g')"
+    else
+      playlist_title="$(printf "%s\n返回\n退出" "$playlist_video_titles" | launcher "选择视频" | tr -d '\n' | sed 's/^[^0-9]  //g')"
+    fi
+    clear
+    playlist_title="$(echo "$playlist_title" | sed 's/"/\\"/g')"
+    case "$playlist_title" in
+    *返回|"")
+      break
+      ;;
+    *退出)
+      byebye
+      ;;
+    esac
+    playlist_title="$(echo "$playlist_title" | sed 's/"/\\"/g;s/ *$//g' | tr -d "\n")"
+    playlist="$(echo "$playlist_results" | jq ".entries|map(select(.title == \"$playlist_title\"))|.[0]")"
+    playlist_title="$(echo "$playlist_title" | sed 's/^.. //g')"
+    url="$(echo "$playlist" | jq '.url' -r)"
+    search_results=$(run_yt_dlp "$url")
+    playlist_explorer
+  done
+}
+channels_explorer() {
+  while true; do
+    channel_action="$(printf "\
+${CYAN}${RESET}  视频
+${CYAN}󰩉${RESET}  精选
+${CYAN}${RESET}  搜索
+${CYAN}󰐑${RESET}  播放列表
+${CYAN}${RESET}  短视频
+${CYAN}󰠿${RESET}  直播
+${CYAN}${RESET}  播客
+${CYAN}󰵀${RESET}  订阅
+${CYAN}󰌍${RESET}  返回
+${RED}󰈆${RESET}  退出
+" | launcher "选择操作" | sed 's/.  //g')"
+    [ "$channel_action" = "退出" ] && byebye
+    [ "$channel_action" = "返回" ] || [ "$channel_action" = "" ] && break
+    uploader_url_base="$(echo "$channel" | jq '.uploader_url' -r)"
+
+    case "$channel_action" in
+    视频)
+      url="$uploader_url_base/videos"
+      search_results=$(run_yt_dlp "$url")
+      playlist_explorer
+      ;;
+    直播)
+      url="$uploader_url_base/streams"
+      search_results=$(run_yt_dlp "$url")
+      playlist_explorer
+      ;;
+    播客)
+      url="$uploader_url_base/podcasts"
+      playlists_explorer
+      ;;
+    短视频)
+      url="$uploader_url_base/shorts"
+      search_results=$(run_yt_dlp "$url")
+      playlist_explorer
+      ;;
+    精选)
+      url="$uploader_url_base/featured"
+      playlists_explorer
+      ;;
+    播放列表)
+      url="$uploader_url_base/playlists"
+      playlists_explorer
+      ;;
+    搜索)
+      clear
+      search_term="$(prompt "输入要搜索的关键词" | jq -Rr '@uri')"
+      url="$uploader_url_base/search?query=$search_term"
+      search_results=$(run_yt_dlp "$url")
+      playlist_explorer
+      ;;
+    订阅)
+      if ! [ -s "$CLI_CONFIG_DIR/subscriptions.json" ]; then
+        if confirm "您想先导入您的YouTube订阅吗；除非您删除订阅文件，否则您将无法再次执行此操作"; then
+          _channels_data=$(yt-dlp "https://www.youtube.com/feed/channels" --flat-playlist $PREFERRED_BROWSER -J)
+          echo "$_channels_data" >"$CLI_CONFIG_DIR/subscriptions.json"
+        else
+
+          _channels_data='{"entries":[]}'
+        fi
+      else
+        _channels_data=$(cat "$CLI_CONFIG_DIR/subscriptions.json")
+      fi
+
+      id=$(echo "$channel" | jq '.id' -r)
+      echo "$_channels_data" | jq "{\"entries\":[.entries[] | select(.id != \"$id\")]}|.entries+=[$channel]" >"$CLI_CONFIG_DIR/subscriptions.json" && send_notification "成功订阅" || send_notification "订阅频道失败"
+      ;;
+    退出)
+      byebye
+      ;;
+    *)
+      echo 无效频道操作
+      sleep "$NOTIFICATION_DURATION"
+      ;;
+    esac
+    clear
+  done
+
+}
+main() {
+  SHELL="bash"
+  clear
+  case "${CMD_ACTION}" in
+  Search)
+    unset CMD_ACTION
+    action="Search"
+    ;;
+  *)
+    action="$(printf "\
+${CYAN}${RESET}  你的推荐
+${CYAN}${RESET}  热门
+${CYAN}󰐑${RESET}  播放列表
+${CYAN}${RESET}  搜索
+${CYAN}${RESET}  稍后观看
+${CYAN}󰵀${RESET}  订阅内容
+${CYAN}󰑈${RESET}  频道
+${CYAN}${RESET}  自定义播放列表
+${CYAN}${RESET}  喜欢的视频
+${CYAN}${RESET}  已保存的视频
+${CYAN}${RESET}  观看历史
+${CYAN}${RESET}  最近观看
+${CYAN}${RESET}  短视频
+${CYAN}${RESET}  编辑配置
+${CYAN}${RESET}  其他选项
+${RED}󰈆${RESET}  退出" | launcher "选择操作" | sed 's/.*  //g')"
+    ;;
+  esac
+  [ "$action" = "退出" ] && byebye
+
+  unset urlForAll
+  case "$action" in
+  "你的推荐")
+    url="https://www.youtube.com"
+    search_results=$(run_yt_dlp "$url")
+    playlist_explorer
+    ;;
+  热门)
+    url="https://www.youtube.com/feed/trending"
+    search_results=$(run_yt_dlp "$url")
+    playlist_explorer
+    ;;
+  搜索)
+    clear
+    if [ -z "$CMD_SEARCH_TERMS" ]; then
+           search_term="$(prompt "输入要搜索的内容")"
+      # Exit if user presses ESC or leaves search empty in rofi
+      if [ "$PREFERRED_SELECTOR" = "rofi" ] && [ -z "$search_term" ]; then
+        echo "搜索已取消。未提供搜索关键词。"
+        return 1
+      fi
+    else
+      search_term="$CMD_SEARCH_TERMS"
+      unset CMD_SEARCH_TERMS
+    fi
+    [ "$SEARCH_HISTORY" = "true" ] && [ -s "$CLI_CACHE_DIR/search_history.txt" ] && history=$(grep --invert-match "^$search_term\$" "$CLI_CACHE_DIR/search_history.txt")
+    [ "$SEARCH_HISTORY" = "true" ] && [ -s "$CLI_CACHE_DIR/search_history.txt" ] && echo "$history" >$CLI_CACHE_DIR/search_history.txt
+    [ "$SEARCH_HISTORY" = "true" ] && echo "$search_term" >>"$CLI_CACHE_DIR/search_history.txt"
+    search_term=$(echo "$search_term" | jq -Rr '@uri')
+    url="https://www.youtube.com/results?search_query=$search_term&sp=EgIQAQ%253D%253D"
+    search_results=$(run_yt_dlp "$url")
+    playlist_explorer
+    ;;
+  "订阅内容")
+    url="https://www.youtube.com/feed/subscriptions"
+    search_results=$(run_yt_dlp "$url")
+    playlist_explorer
+    ;;
+  播放列表)
+    url="https://www.youtube.com/feed/playlists"
+    playlists_explorer
+    ;;
+  "已保存的视频")
+    ! [ -s "$CLI_CONFIG_DIR/saved_videos.json" ] && echo 没有已保存的视频 && sleep "$NOTIFICATION_DURATION" && main
+    search_results=$(jq '{"entries":.entries|reverse}' "$CLI_CONFIG_DIR/saved_videos.json")
+    playlist_explorer
+    ;;
+  最近观看)
+    ! [ -s "$CLI_CONFIG_DIR/recent.json" ] && echo 没有最近观看的视频 && sleep "$NOTIFICATION_DURATION" && main
+    search_results=$(jq '{"entries":.entries|reverse}' "$CLI_CONFIG_DIR/recent.json")
+    playlist_explorer
+    ;;
+  频道)
+    while true; do
+      get_channels_data
+      channels=$(echo "$channels_data" | jq '.entries[].channel' -r)
+      export SHELL CLI_CONFIG_DIR
+      channel_name=$(printf "%s\n主菜单\n退出" "$channels" | launcher_with_preview "选择频道" "$PREVIEW_SCRIPT_FOR_CHANNELS")
+      channel_name="$(echo "$channel_name" | sed 's/"/\\"/g;s/ *$//g' | tr -d "\n")"
+      [ "$channel_name" = "退出" ] && byebye
+      [ "$channel_name" = "主菜单" ] && break
+      channel="$(echo "$channels_data" | jq ".entries|map(select(.channel == \"$channel_name\"))|.[0]")"
+      channels_explorer
+    done
+    ;;
+  自定义播放列表)
+    ! [ -s "$CUSTOM_PLAYLISTS" ] && echo "您没有任何自定义播放列表，可以在这里创建 <$CUSTOM_PLAYLISTS>" && sleep "$NOTIFICATION_DURATION" && main
+    while true; do
+      playlist_title=$(printf "%s\n返回" "$(jq -r '.|reverse|.[].name' "$CUSTOM_PLAYLISTS")" | launcher "选择要播放的自定义播放列表")
+      [ "$playlist_title" = "返回" ] || [ "$playlist_title" = "" ] && break
+      url=$(jq -r ". | map(select(.name == \"$playlist_title\" )) | .[0].playlistWatchUrl" "$CUSTOM_PLAYLISTS")
+      urlForAll=$(jq -r ". | map(select(.name == \"$playlist_title\" )) | .[0].playlistUrl" "$CUSTOM_PLAYLISTS")
+      search_results=$(run_yt_dlp "$url")
+      playlist_explorer
+    done
+    ;;
+  "喜欢的视频")
+    url="https://www.youtube.com/playlist?list=LL"
+    search_results=$(run_yt_dlp "$url")
+    playlist_explorer
+    ;;
+  "稍后观看")
+    url="https://www.youtube.com/playlist?list=WL"
+    search_results=$(run_yt_dlp "$url")
+    playlist_explorer
+    ;;
+  "观看历史")
+    url="https://www.youtube.com/feed/history"
+    search_results=$(run_yt_dlp "$url")
+    playlist_explorer
+    ;;
+  短视频)
+    url="https://www.youtube.com/feed/clips"
+    search_results=$(run_yt_dlp "$url")
+    playlist_explorer
+    ;;
+  "编辑配置")
+    if command -v "$EDITOR" >/dev/null 2>&1; then
+      $EDITOR "$CLI_CONFIG_DIR/${CLI_NAME}.conf"
+    elif command -v "open" >/dev/null 2>&1; then
+      open "$CLI_CONFIG_DIR/${CLI_NAME}.conf"
+    elif command -v "xdg-open" >/dev/null 2>&1; then
+      xdg-open "$CLI_CONFIG_DIR/${CLI_NAME}.conf"
+    else
+      send_notification "找不到编辑器环境变量 ($EDITOR) 或 xdg-open 或 open"
+    fi
+    load_config
+    ;;
+  其他选项)
+    while true; do
+      action="$(printf "\
+${CYAN}󰵀${RESET}  浏览频道
+${CYAN}󰐑${RESET}  浏览播放列表
+${CYAN}󱘢${RESET}  搜索历史
+${CYAN}󰆺${RESET}  新建自定义命令
+${CYAN}󰡦${RESET}  自定义命令
+${CYAN}${RESET}  编辑搜索历史
+${CYAN}󰤀${RESET}  编辑自定义播放列表
+${CYAN}󱄢${RESET}  编辑MPV配置
+${CYAN}󰮆${RESET}  编辑yt-dlp配置
+${CYAN}󱘫${RESET}  编辑自定义命令
+${CYAN}󰓦${RESET}  同步YouTube订阅
+${RED}󰆴${RESET}  清除搜索历史
+${RED}${RESET}  返回
+${RED}󰈆${RESET}  退出
+" | launcher "选择操作" | sed 's/.*  //g')"
+      case "$action" in
+      浏览频道)
+        unset search_term
+        while true; do
+          clear
+          [ -z "$search_term" ] && search_term=$(prompt "您想浏览哪个频道") && url="https://www.youtube.com/results?search_query=$search_term&sp=EgIQAg%253D%253D" && channels_data=$(
+            if command -v "gum" >/dev/null 2>&1; then
+              gum spin --show-output -- yt-dlp "$url" -J --flat-playlist --extractor-args youtubetab:approximate_date $PREFERRED_BROWSER --playlist-start 1 --playlist-end $NO_OF_SEARCH_RESULTS
+            else
+              echo "加载中..." >/dev/stderr
+              yt-dlp "$url" -J --flat-playlist --extractor-args youtubetab:approximate_date $PREFERRED_BROWSER --playlist-start 1 --playlist-end $NO_OF_SEARCH_RESULTS
+            fi
+          ) && download_preview_images "$channels_data" "https:"
+          clear
+          channels=$(echo "$channels_data" | jq '.entries[].channel' -r)
+          export channels_data SHELL
+          channel_name=$(printf "%s\n返回\n退出" "$channels" | launcher_with_preview "选择频道" "$PREVIEW_SCRIPT_FOR_CHANNELS_EXPLORER")
+          channel_name="$(echo "$channel_name" | sed 's/"/\\"/g;s/ *$//g' | tr -d "\n")"
+          [ "$channel_name" = "退出" ] && byebye
+          [ "$channel_name" = "返回" ] || [ "$channel_name" = "" ] && break
+          channel="$(echo "$channels_data" | jq ".entries|map(select(.channel == \"$channel_name\"))|.[0]")"
+          channels_explorer
+        done
+        unset channels_data
+        ;;
+      浏览播放列表)
+        clear
+        search_term=$(prompt "您想浏览哪个播放列表")
+        url="https://www.youtube.com/results?search_query=$search_term&sp=EgIQAw%253D%253D"
+        PLAYLISTS_EXTRA_ARGS="--playlist-start 1 --playlist-end $NO_OF_SEARCH_RESULTS"
+        playlists_explorer
+        unset PLAYLISTS_EXTRA_ARGS
+        ;;
+      搜索历史)
+        clear
+        while true; do
+          ! [ -s "$CLI_CACHE_DIR/search_history.txt" ] && echo "没有搜索历史或已禁用" && sleep "$NOTIFICATION_DURATION" && main
+          search_term="$(printf "$(tac "$CLI_CACHE_DIR/search_history.txt")\n返回" | launcher "搜索" | jq -Rr '@uri')"
+          [ "$search_term" = "返回" ] || [ "$search_term" = "" ] && break
+          url="https://www.youtube.com/results?search_query=$search_term&sp=EgIQAQ%253D%253D"
+          search_results=$(run_yt_dlp "$url")
+          playlist_explorer
+        done
+        ;;
+      新建自定义命令)
+        clear
+        custom_yt_dlp_cmd=$(prompt "输入自定义yt-dlp命令" "yt-dlp -J --flat-playlist --extractor-args youtubetab:approximate_date $PREFERRED_BROWSER https://youtube.com")
+        custom_cmds="[]"
+        [ -s "$F_CUSTOM_CMDS" ] && custom_cmds=$(cat "$F_CUSTOM_CMDS")
+        custom_cmd_name=$(prompt "输入新自定义命令的名称")
+        custom_cmd="
+          {
+            \"name\": \"$custom_cmd_name\",
+            \"cmd\": \"$custom_yt_dlp_cmd\"
+          }
+        "
+        echo "$custom_cmds" | jq ".+=[$custom_cmd]" >"$F_CUSTOM_CMDS" && send_notification "成功添加到自定义命令" || send_notification "添加到自定义命令失败"
+
+        echo 运行新自定义命令...
+        search_results=$(
+          if command -v "gum" >/dev/null 2>&1; then
+            gum spin --show-output --show-error -- $custom_yt_dlp_cmd || send_notification "获取数据失败 : ("
+          else
+            echo "加载中..." >/dev/stderr
+            $custom_yt_dlp_cmd || send_notification "获取数据失败 : ("
+          fi
+        )
+
+        playlist_explorer
+        ;;
+      自定义命令)
+        ! [ -s "$F_CUSTOM_CMDS" ] && send_notification "您没有任何自定义命令，可以在这里创建 <$F_CUSTOM_CMDS>"
+        while true; do
+          custom_cmd_name=$(printf "%s\n返回" "$(jq -r '.[].name' "$F_CUSTOM_CMDS")" | launcher "选择要运行的自定义数据加载命令")
+          [ "$custom_cmd_name" = "返回" ] || [ "$custom_cmd_name" = "" ] && break
+          custom_yt_dlp_cmd=$(jq -r ". | map(select(.name == \"$custom_cmd_name\" )) | .[0].cmd" "$F_CUSTOM_CMDS")
+          echo 运行自定义命令...
+          search_results=$(
+            if command -v "gum" >/dev/null 2>&1; then
+              gum spin --show-output --show-error -- $custom_yt_dlp_cmd || send_notification "获取数据失败 : ("
+            else
+              echo "加载中..." >/dev/stderr
+              $custom_yt_dlp_cmd || send_notification "获取数据失败 : ("
+            fi
+          )
+          playlist_explorer
+        done
+        ;;
+      编辑搜索历史)
+        if command -v "$EDITOR" >/dev/null 2>&1; then
+          $EDITOR "$CLI_CACHE_DIR/search_history.txt"
+        elif command -v "open" >/dev/null 2>&1; then
+          open "$CLI_CACHE_DIR/search_history.txt"
+        elif command -v "xdg-open" >/dev/null 2>&1; then
+          xdg-open "$CLI_CACHE_DIR/search_history.txt"
+        else
+          send_notification "找不到编辑器环境变量 ($EDITOR) 或 xdg-open 或 open"
+        fi
+        ;;
+      编辑自定义播放列表)
+        if command -v "$EDITOR" >/dev/null 2>&1; then
+          $EDITOR "$CLI_CONFIG_DIR/custom_playlists.json"
+        elif command -v "open" >/dev/null 2>&1; then
+          open "$CLI_CONFIG_DIR/custom_playlists.json"
+        elif command -v "xdg-open" >/dev/null 2>&1; then
+          xdg-open "$CLI_CONFIG_DIR/custom_playlists.json"
+        else
+          send_notification "找不到编辑器环境变量 ($EDITOR) 或 xdg-open 或 open"
+        fi
+        ;;
+      编辑自定义命令)
+        if command -v "$EDITOR" >/dev/null 2>&1; then
+          $EDITOR "$F_CUSTOM_CMDS"
+        elif command -v "open" >/dev/null 2>&1; then
+          open "$F_CUSTOM_CMDS"
+        elif command -v "xdg-open" >/dev/null 2>&1; then
+          xdg-open "$F_CUSTOM_CMDS"
+        else
+          send_notification "找不到编辑器环境变量 ($EDITOR) 或 xdg-open 或 open"
+        fi
+        ;;
+
+      编辑MPV配置)
+        if command -v "$EDITOR" >/dev/null 2>&1; then
+          $EDITOR "$HOME/.config/mpv/mpv.conf"
+        elif command -v "open" >/dev/null 2>&1; then
+          open "$HOME/.config/mpv/mpv.conf"
+        elif command -v "xdg-open" >/dev/null 2>&1; then
+          xdg-open "$HOME/.config/mpv/mpv.conf"
+        else
+          send_notification "找不到编辑器环境变量 ($EDITOR) 或 xdg-open 或 open"
+        fi
+        ;;
+      "编辑yt-dlp配置")
+        if command -v "$EDITOR" >/dev/null 2>&1; then
+          $EDITOR "$HOME/.config/yt-dlp/config"
+        elif command -v "open" >/dev/null 2>&1; then
+          open "$HOME/.config/yt-dlp/config"
+        elif command -v "xdg-open" >/dev/null 2>&1; then
+          xdg-open "$HOME/.config/yt-dlp/config"
+        else
+          send_notification "找不到编辑器环境变量 ($EDITOR) 或 xdg-open 或 open"
+        fi
+        ;;
+      清除搜索历史)
+        confirm "您确定要清除搜索历史吗（$CLI_CACHE_DIR/search_history.txt）" && rm "$CLI_CACHE_DIR/search_history.txt"
+        ;;
+      同步YouTube订阅)
+        if confirm "这将删除您的本地订阅，您确定要继续吗"; then
+          echo "同步订阅中..."
+          [ -n "$PREFERRED_BROWSER" ] && channels_data=$(yt-dlp "https://www.youtube.com/feed/channels" --flat-playlist $PREFERRED_BROWSER -J) || send_notification "获取订阅失败（请在配置中设置首选浏览器"
+          download_preview_images "$channels_data" "https:"
+          [ -n "$channels_data" ] && ! [ "$channels_data" = "null" ] && echo "$channels_data" >"$CLI_CONFIG_DIR/subscriptions.json" && send_notification "成功导入YouTube订阅" || send_notification "获取订阅失败"
+        else
+          send_notification "同步已取消"
+        fi
+        ;;
+      返回|"")
+        break
+        ;;
+      退出)
+        byebye
+        ;;
+      *)
+        echo 无效操作
+        sleep "$NOTIFICATION_DURATION"
+        ;;
+      esac
+    done
+    ;;
+  退出|"")
+    byebye
+    ;;
+  *)
+    echo 无效操作
+    sleep "$NOTIFICATION_DURATION"
+    ;;
+  esac
+  main
+}
+
+usage() {
+  printf "\
+一个用于在终端浏览YouTube的脚本
+
+用法: %s [参数] [选项]
+
+命令行选项会覆盖配置
+
+选项:
+  -S, --search [Search Terms]
+    搜索视频
+  -e, --edit-config
+    编辑 $CLI_NAME 配置文件
+  --rofi-theme <path>
+    设置您的rofi配置文件路径
+  --disown-streaming-process
+    分离流媒体进程，这样即使您关闭 $CLI_NAME 也可以继续流媒体
+  --no-disown-streaming-process
+    不分离流媒体进程
+  --disown-downloading-process
+    分离下载进程，这样即使您关闭 $CLI_NAME 也可以继续下载
+  --no-disown-downloading-process
+    不分离下载进程
+  -s <selector>,--preferred-selector <selector> [fzf/rofi]
+    设置 $CLI_NAME 使用的首选选择器
+  -p <player>,--player <player> [mpv/vlc]
+    设置 $CLI_NAME 使用的视频播放器
+  -x <extension>,--extension <extension> [name of extension file at $CLI_EXTENSION_DIR]
+    设置 $CLI_NAME 使用的扩展
+  --preview
+    启用预览窗口
+  --no-preview
+    禁用预览窗口
+  -E, --generate-desktop-entry
+    打印桌面条目并退出
+  -h, --help
+    显示此帮助信息并退出
+  -v, --version
+    打印 $CLI_NAME 版本并退出
+
+参数:
+  completions
+    为 $CLI_NAME 生成shell补全
+
+示例:
+  $CLI_NAME --generate-desktop-entry
+  $CLI_NAME completions --fish
+" "$CLI_NAME"
+  exit "$1"
+}
+
+# load config and default vars
+load_config
+force_update=0
+CURRENT_TIME=$(date +%s)
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+  -h | --help)
+    usage 0
+    ;;
+  -v | --version)
+    echo "$CLI_NAME v$CLI_VERSION 版权所有 © 2024 $CLI_AUTHOR 项目"
+    exit 0
+    ;;
+  -e | --edit-config)
+    if command -v "$EDITOR" >/dev/null 2>&1; then
+      $EDITOR "$CLI_CONFIG_DIR/${CLI_NAME}.conf"
+    elif command -v "$PREFERRED_EDITOR" >/dev/null 2>&1; then
+      open "$CLI_CONFIG_DIR/${CLI_NAME}.conf"
+    elif command -v "open" >/dev/null 2>&1; then
+      open "$CLI_CONFIG_DIR/${CLI_NAME}.conf"
+    elif command -v "xdg-open" >/dev/null 2>&1; then
+      xdg-open "$CLI_CONFIG_DIR/${CLI_NAME}.conf"
+    else
+      send_notification "找不到编辑器环境变量 ($EDITOR) 或 xdg-open 或 open" && exit 1
+    fi
+
+    byebye
+    ;;
+  -U | --update)
+    check_update "A new version of $CLI_NAME has been found would you like to upgrade(y/n)"
+    exit 0
+    ;;
+  -S | --search)
+    CMD_ACTION="Search"
+    CMD_SEARCH_TERMS="$2"
+    shift
+    ;;
+  -s | --preferred-selector)
+    [ -n "$2" ] || usage 1
+    PREFERRED_SELECTOR="$2"
+    shift
+    ;;
+  --preview)
+    ENABLE_PREVIEW="true"
+    ;;
+  --no-preview)
+    ENABLE_PREVIEW="false"
+    ;;
+  --disown-streaming-process)
+    DISOWN_STREAMING_PROCESS="true"
+    ;;
+  --no-disown-streaming-process)
+    DISOWN_STREAMING_PROCESS="false"
+    ;;
+  --disown-downloading-process)
+    DISOWN_DOWNLOADING_PROCESS="true"
+    ;;
+  --no-disown-downloading-process)
+    DISOWN_DOWNLOADING_PROCESS="false"
+    ;;
+  --rofi-theme)
+    [ -n "$2" ] || usage 1
+    ROFI_THEME="$2"
+    shift
+    ;;
+  -p | --player)
+    [ -n "$2" ] || usage 1
+    PLAYER="$2"
+    shift
+    ;;
+  -E | --generate-desktop-entry)
+    echo "
+[Desktop Entry]
+Name=$CLI_NAME
+Type=Application
+version=$CLI_VERSION
+Path=$HOME
+Comment=在终端中浏览Youtube
+Terminal=false
+Icon=$CLI_DIR/assets/logo.png
+Exec=$0 --preferred-selector rofi
+Categories=教育
+    "
+    exit 0
+    ;;
+  completions)
+    [ -n "$2" ] || usage 1
+    case "$2" in
+    -f | --fish)
+      echo "\
+# --- 补全 ---
+complete -c $CLI_NAME --no-files --arguments \"completions\" --condition 'not __fish_contains_opt sort-by S e edit-config s preferred-selector  E generate-desktop-entry rofi-theme'
+
+complete -c $CLI_NAME --no-files --short-option h --long-option help --description '打印简短的帮助文本并退出'
+complete -c $CLI_NAME --no-files --short-option v --long-option version --description '打印简短的版本字符串并退出' --condition 'not __fish_seen_subcommand_from completions'
+
+complete -c $CLI_NAME --no-files --short-option e --long-option edit-config --description '编辑 $CLI_NAME 配置文件' --condition 'not __fish_seen_subcommand_from completions'
+complete -c $CLI_NAME --no-files --short-option U --long-option update --description '更新脚本' --condition 'not __fish_seen_subcommand_from completions'
+complete -c $CLI_NAME --no-files --short-option p --long-option player --description '要使用的视频播放器' --condition 'not __fish_seen_subcommand_from completions' --exclusive --arguments 'mpv vlc'
+complete -c $CLI_NAME --no-files --short-option x --long-option extension --description '要使用的扩展' --condition 'not __fish_seen_subcommand_from completions' --exclusive --arguments \"(command ls $CLI_EXTENSION_DIR)\"
+complete -c $CLI_NAME --no-files --short-option s --long-option preferred-selector --description '您的首选选择器' --condition 'not __fish_seen_subcommand_from completions' --exclusive --arguments 'fzf rofi'
+complete -c $CLI_NAME --no-files --short-option E --long-option generate-desktop-entry --description '生成桌面条目信息' --condition 'not __fish_seen_subcommand_from completions'
+
+complete -c $CLI_NAME --no-files --long-option preview --description '启用预览窗口' --condition 'not __fish_seen_subcommand_from completions'
+complete -c $CLI_NAME --no-files --long-option no-preview --description '禁用预览窗口' --condition 'not __fish_seen_subcommand_from completions'
+
+complete -c $CLI_NAME --force-files --long-option rofi-theme --description '您的rofi配置文件路径' --condition 'not __fish_seen_subcommand_from completions'
+
+complete -c $CLI_NAME --no-files --short-option S --long-option search --description '您要搜索的关键词' --condition 'not __fish_seen_subcommand_from completions'
+
+complete -c $CLI_NAME --no-files --short-option z --long-option zsh --description '打印zsh补全' --condition '__fish_seen_subcommand_from completions'
+complete -c $CLI_NAME --no-files --short-option b --long-option bash --description '打印bash补全' --condition '__fish_seen_subcommand_from completions'
+complete -c $CLI_NAME --no-files --short-option f --long-option fish --description '打印fish补全' --condition '__fish_seen_subcommand_from completions'
+    "
+      ;;
+    -b | --bash)
+      # TODO: write bash completions
+      echo 通过编写bash补全为$CLI_NAME做出贡献
+      ;;
+    -z | --zsh)
+      # TODO: write zsh completions
+      echo 通过编写zsh补全为$CLI_NAME做出贡献
+      ;;
+    -h | --help)
+      echo "\
+为 $CLI_NAME 生成shell补全
+
+选项:
+  --fish
+    打印fish补全并退出
+  --bash
+    打印bash补全并退出
+  --zsh
+    打印zsh补全并退出
+
+示例:
+  $CLI_NAME completions --fish
+  $CLI_NAME completions --bash
+  $CLI_NAME completions --zsh
+    "
+      ;;
+    *)
+      echo "\
+为 $CLI_NAME 生成shell补全
+
+选项:
+  --fish
+    打印fish补全并退出
+  --bash
+    打印bash补全并退出
+  --zsh
+    打印zsh补全并退出
+
+示例:
+  $CLI_NAME completions --fish
+  $CLI_NAME completions --bash
+  $CLI_NAME completions --zsh
+    "
+      exit 1
+      ;;
+
+    esac
+    exit 0
+    ;;
+  -x | --extension)
+    [ -n "$2" ] || usage 1
+    . "$CLI_EXTENSION_DIR/$2"
+    shift
+    ;;
+  *)
+    usage 1
+    ;;
+  esac
+  shift
+done
+
+# Check for updates if enabled
+if [ "$UPDATE_CHECK" = "true" ]; then
+  # setup for ui
+  timestamp_file="$CLI_CACHE_DIR/last_update_check"
+
+  # Time interval in seconds (6 hours = 21600 seconds)
+  interval=$((6 * 60 * 60))
+
+  # Determine whether to run the update check
+  current_time=$(date +%s)
+  last_check_time=$(cat "$timestamp_file" 2>/dev/null || echo 0)
+
+  if ((current_time - last_check_time >= interval)); then
+    check_update "A new version of $CLI_NAME has been found would you like to upgrade(y/n)"
+    echo "$current_time" >"$timestamp_file"
+  fi
+fi
+core_dep_ch
+
+# exports
+export -f generate_sha256 fzf_preview
+
+main

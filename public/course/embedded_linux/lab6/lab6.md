@@ -1,3 +1,4 @@
+--- 
 # 实验室6 - Linux调度器
 
 **文件结构**  
@@ -59,8 +60,3 @@ pthread_attr_setschedparam(&attr, &param);
 
 ---
 
-这两个Markdown文档可通过以下命令快速查看：
-```bash
-cat lab5/README.md  # 查看实验5说明
-cat lab6/README.md  # 查看实验6说明
-```
