@@ -1,4 +1,3 @@
---- 
 # 实验室6 - Linux调度器
 
 **文件结构**  
@@ -57,6 +56,4 @@ pthread_attr_setschedparam(&attr, &param);
 | SCHED_FIFO | 高优先级线程独占CPU |
 | SCHED_RR   | 同优先级线程轮转执行 |
 | 默认策略   | 受nice值影响 |
-
----
 
