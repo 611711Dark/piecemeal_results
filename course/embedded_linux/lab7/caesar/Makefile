@@ -1,8 +1,6 @@
-# 本地编译专用Makefile
 kdir=/lib/modules/$(shell uname -r)/build  # 动态获取当前内核路径
-
 # 模块名称
-modname=caesar
+modname=caesar_255
 obj-m:=$(modname).o
 
 # 编译模块
