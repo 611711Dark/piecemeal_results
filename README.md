@@ -1,39 +1,44 @@
 # piecemeal_results
 The bits and pieces I've learned and accomplished
 Here's the Markdown documentation for your project with a tree structure and brief descriptions:
+```
+Directory structure
 
-├── [README.md](#readmemd)
-├── [course/](#course)
-│   ├── [embedded_linux/](#embedded_linux)
-│   │   ├── [lab5/](#lab5)
-│   │   │   ├── [README.md](#lab5-readmemd)
-│   │   │   ├── lab5.1.c
-│   │   │   ├── lab5.2.c
-│   │   │   ├── lab5.3.c
-│   │   │   └── [Makefile](#lab5-makefile)
-│   │   ├── [lab6/](#lab6)
-│   │   │   ├── [README.md](#lab6-readmemd)
-│   │   │   ├── lab6.2.c
-│   │   │   ├── [Makefile](#lab6-makefile)
-│   │   │   └── repeat.c
-│   │   └── [lab7/](#lab7)
-│   │       ├── [README.md](#lab7-readmemd)
-│   │       ├── hellodev.c
-│   │       ├── [Makefile](#lab7-makefile)
-│   │       └── [caesar/](#caesar)
-│   │           ├── caesar.c
-│   │           ├── caesar_255.c
-│   │           └── [Makefile](#caesar-makefile)
-│   └── [specific_instrumentation/](#specific_instrumentation)
-│       └── [LAB2_IR.ipynb](#lab2_iripynb)
-└── [work/](#work)
-    ├── [paper/](#paper)
-    │   └── [Π-Nets.2006.13026v2.html](#π-nets200613026v2html)
-    ├── [ppo_draw/](#ppo_draw)
-    │   └── [draw_ppo.py](#draw_ppopy)
-    └── [yt-x_CN_translation/](#yt-x_cn_translation)
-        ├── [README.md](#yt-x-readmemd)
-        └── [yt-x](#yt-x)
+└── 611711dark-piecemeal_results/
+    ├── README.md
+    ├── course/
+    │   ├── embedded_linux/
+    │   │   ├── .gitkeep
+    │   │   ├── lab5/
+    │   │   │   ├── README.md
+    │   │   │   ├── lab5.1.c
+    │   │   │   ├── lab5.2.c
+    │   │   │   ├── lab5.3.c
+    │   │   │   └── Makefile
+    │   │   ├── lab6/
+    │   │   │   ├── README.md
+    │   │   │   ├── lab6.2.c
+    │   │   │   ├── Makefile
+    │   │   │   └── repeat.c
+    │   │   └── lab7/
+    │   │       ├── README.md
+    │   │       ├── hellodev.c
+    │   │       ├── Makefile
+    │   │       └── caesar/
+    │   │           ├── caesar.c
+    │   │           ├── caesar_255.c
+    │   │           └── Makefile
+    │   └── specific_instrumentation/
+    │       └── LAB2_IR.ipynb
+    └── work/
+        ├── paper/
+        │   └── Π-Nets.2006.13026v2.html
+        ├── ppo_draw/
+        │   └── draw_ppo.py
+        └── yt-x_CN_translation/
+            ├── README.md
+            └── yt-x
+```
 
 ## File Descriptions
 
