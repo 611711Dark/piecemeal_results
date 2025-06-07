@@ -36,9 +36,5 @@
 - 主程序：`main.cpp`
 - 音效文件：`collision.wav`
 
-## 扩展可能性
-
-- 添加更多圆形物体
-- 实现更复杂的物理效果
-- 增加用户交互功能
-- 添加更多音效和视觉效果
+## 演示视频
+🔗 [Bilibili 演示视频](https://www.bilibili.com/video/BV1DUT2zDEJC)
