@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<?ccsproject version="1.0"?>
+<projectOptions>
+	<ccsVariant value="50:Theia-based"/>
+	<ccsVersion value="70.2.0"/>
+	<deviceFamily value="MSP430"/>
+	<executableActions value=""/>
+	<createSlaveProjects value=""/>
+	<templateProperties value="id=emptyProject.projectspec.Embedded-C-programming-Laboratory-Part_1-Exercise_1"/>
+	<connection value="common/targetdb/connections/TIMSP430-USB.xml"/>
+	<activeTargetConfiguration value="targetConfigs/MSP430F5529.ccxml"/>
+	<origin value="/home/jazz/ti/msp430ware_3_80_14_01/driverlib/examples/MSP430F5xx_6xx/00_emptyProject/CCS/emptyProject.projectspec"/>
+	<filesToOpen value=""/>
+</projectOptions>
