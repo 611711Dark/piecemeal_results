@@ -3,7 +3,7 @@ The bits and pieces I've learned and accomplished
 Here's the Markdown documentation for your project with a tree structure and brief descriptions:
 
 ## Directory structure
-
+```
 └── piecemeal_results/
     ├── README.md
     ├── course/
@@ -31,6 +31,7 @@ Here's the Markdown documentation for your project with a tree structure and bri
         └── yt-x_CN_translation/
             ├── README.md
             └── yt-x
+```
 
 ## File Descriptions
 
