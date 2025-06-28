@@ -1,44 +1,36 @@
 # piecemeal_results
 The bits and pieces I've learned and accomplished
 Here's the Markdown documentation for your project with a tree structure and brief descriptions:
-```
-Directory structure
 
-└── 611711dark-piecemeal_results/
+## Directory structure
+
+└── piecemeal_results/
     ├── README.md
     ├── course/
+    │   ├── embedded_c/
+    │   │   ├── Embedded-C-programming-Laboratory-Part_1-Exercise_1/
+    │   │   ├── ... (up to Exercise_27)
+    │   │   ├── game/
+    │   │   └── lib_lab_sessions/
     │   ├── embedded_linux/
-    │   │   ├── .gitkeep
     │   │   ├── lab5/
-    │   │   │   ├── README.md
-    │   │   │   ├── lab5.1.c
-    │   │   │   ├── lab5.2.c
-    │   │   │   ├── lab5.3.c
-    │   │   │   └── Makefile
     │   │   ├── lab6/
-    │   │   │   ├── README.md
-    │   │   │   ├── lab6.2.c
-    │   │   │   ├── Makefile
-    │   │   │   └── repeat.c
     │   │   └── lab7/
-    │   │       ├── README.md
-    │   │       ├── hellodev.c
-    │   │       ├── Makefile
-    │   │       └── caesar/
-    │   │           ├── caesar.c
-    │   │           ├── caesar_255.c
-    │   │           └── Makefile
     │   └── specific_instrumentation/
     │       └── LAB2_IR.ipynb
     └── work/
         ├── paper/
         │   └── Π-Nets.2006.13026v2.html
         ├── ppo_draw/
-        │   └── draw_ppo.py
+        │   ├── draw_ppo.py
+        │   └── ppo_flow.png
+        ├── rock_paper_scissors_simulator/
+        │   ├── collision.wav
+        │   ├── main.cpp
+        │   └── README.md
         └── yt-x_CN_translation/
             ├── README.md
             └── yt-x
-```
 
 ## File Descriptions
 
@@ -46,6 +38,13 @@ Directory structure
 The main project README with a brief description of the collected work.
 
 ### course/
+
+#### embedded_c/
+A collection of exercises for an embedded C programming course, covering various topics from basic I/O to more advanced concepts.
+
+- **Embedded-C-programming-Laboratory-Part_1-Exercise_1/ to Part_3-Exercise_27/**: These directories contain the lab exercises for the embedded C course.
+- **game/**: Contains game-related files for the embedded C course.
+- **lib_lab_sessions/**: Contains library files for the lab sessions.
 
 #### embedded_linux/
 
@@ -81,6 +80,12 @@ The main project README with a brief description of the collected work.
 
 #### ppo_draw/
 - **draw_ppo.py**: Python script using Plotly to visualize PPO algorithm flow
+- **ppo_flow.png**: Image of the PPO flow
+
+#### rock_paper_scissors_simulator/
+- **main.cpp**: C++ implementation of a rock-paper-scissors simulator.
+- **collision.wav**: Sound file for the simulation.
+- **README.md**: Documentation for the simulator.
 
 #### yt-x_CN_translation/
 - **README.md**: Documentation for Chinese localization of yt-x project
