@@ -1,0 +1,14 @@
+// 使用输出参数返回结果
+#define METHOD_CALL_RET(obj, method, out, ...) \
+    do { \
+        __typeof__(*(obj)) *_obj = (obj); \
+        *(out) = _obj->method(_obj, ##__VA_ARGS__); \
+    } while(0)
+
+//需要c11
+#define METHOD_CALL(obj, method, ...) \
+    ({ \
+        __typeof__(*(obj)) *_obj = (obj); \
+        (*(_obj)).method(_obj, ##__VA_ARGS__); \
+    })
+

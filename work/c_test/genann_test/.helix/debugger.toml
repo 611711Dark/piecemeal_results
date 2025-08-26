@@ -1,0 +1,4 @@
+[debugger]
+name = "GDB"
+command = "gdb"
+
